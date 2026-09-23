@@ -33,7 +33,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
 
   const filterKeywords = (list: KeywordItem[]) => {
     if (!normalizedFilter) return list;
-    return list.filter(k => k.keyword.toLowerCase().includes(normalizedFilter));
+    return list.filter(item => String(item.keyword || '').trim().toLowerCase().includes(normalizedFilter));
   };
 
   const highFiltered = filterKeywords(keywords.highRelevance);
@@ -47,12 +47,22 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
     : keywords.clusters
         .map(cluster => ({
           ...cluster,
-          keywords: cluster.keywords.filter(kw => kw.toLowerCase().includes(normalizedFilter))
+          keywords: (cluster.keywords || []).filter(kw =>
+            String(kw || '').trim().toLowerCase().includes(normalizedFilter)
+          )
         }))
-        .filter(cluster =>
-          cluster.theme.toLowerCase().includes(normalizedFilter) ||
-          cluster.keywords.length > 0
-        );
+        .filter(cluster => cluster.keywords.length > 0);
+
+  const filteredKeywordCount =
+    highFiltered.length + longTailFiltered.length + audienceFiltered.length +
+    filteredClusters.reduce((total, cluster) => total + cluster.keywords.length, 0);
+
+  const tabCounts = {
+    high: highFiltered.length,
+    longtail: longTailFiltered.length,
+    audience: audienceFiltered.length,
+    clusters: filteredClusters.reduce((total, cluster) => total + cluster.keywords.length, 0)
+  };
 
   const renderKeywordRow = (item: KeywordItem) => (
     <div
@@ -141,10 +151,10 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
         <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
             { id: 'all', label: 'All Keywords' },
-            { id: 'high', label: `High Relevance (${keywords.highRelevance.length})` },
-            { id: 'longtail', label: `Long-Tail (${keywords.longTail.length})` },
-            { id: 'audience', label: `Audience-Specific (${keywords.audienceSpecific.length})` },
-            { id: 'clusters', label: `Thematic Clusters (${keywords.clusters.length})` }
+            { id: 'high', label: `High Relevance (${normalizedFilter ? tabCounts.high : keywords.highRelevance.length})` },
+            { id: 'longtail', label: `Long-Tail (${normalizedFilter ? tabCounts.longtail : keywords.longTail.length})` },
+            { id: 'audience', label: `Audience-Specific (${normalizedFilter ? tabCounts.audience : keywords.audienceSpecific.length})` },
+            { id: 'clusters', label: `Thematic Clusters (${normalizedFilter ? tabCounts.clusters : keywords.clusters.length})` }
           ].map(tab => (
             <button
               key={tab.id}
@@ -163,14 +173,37 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
         <div className="relative w-full sm:w-64">
           <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
-            type="text"
+            id="keyword-filter-input"
+            type="search"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="Filter keywords..."
-            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:border-amber-500"
+            aria-label="Filter all keywords"
+            autoComplete="off"
+            className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:border-amber-500"
           />
+          {filterQuery && (
+            <button
+              type="button"
+              onClick={() => setFilterQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-800 text-xs font-bold"
+              aria-label="Clear keyword filter"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
+
+      {normalizedFilter && filteredKeywordCount === 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          <Filter className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm font-bold text-slate-800">No matching keywords</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Try another word or clear the filter to see all keywords.
+          </p>
+        </div>
+      )}
 
       {/* Thematic Keyword Clusters View */}
       {(activeTab === 'all' || activeTab === 'clusters') && filteredClusters.length > 0 && (
@@ -215,7 +248,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
       )}
 
       {/* High-Relevance Keywords */}
-      {(activeTab === 'all' || activeTab === 'high') && (
+      {(activeTab === 'all' || activeTab === 'high') && highFiltered.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -237,7 +270,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
       )}
 
       {/* Long-Tail Keywords */}
-      {(activeTab === 'all' || activeTab === 'longtail') && (
+      {(activeTab === 'all' || activeTab === 'longtail') && longTailFiltered.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -259,7 +292,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
       )}
 
       {/* Audience-Specific Keywords */}
-      {(activeTab === 'all' || activeTab === 'audience') && (
+      {(activeTab === 'all' || activeTab === 'audience') && audienceFiltered.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
