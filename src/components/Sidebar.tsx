@@ -215,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => handleItemClick('pricing')}
               className="w-full py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded text-xs font-bold text-center transition-colors block shadow-xs"
             >
-              Get More Credits ($2.99-$59.99)
+              Get More Credits
             </button>
           </div>
         </div>
