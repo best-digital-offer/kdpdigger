@@ -563,8 +563,10 @@ Generate:
       contents: prompt,
       config: {
         systemInstruction,
-        temperature: 0.7,
         responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingLevel: 'low'
+        },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
