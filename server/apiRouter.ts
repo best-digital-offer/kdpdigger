@@ -89,7 +89,7 @@ const getUserFromReq = (req: express.Request) => {
 };
 // ===================== AUTH ROUTES =====================
 
-apiRouter.get('/auth/me', (req, res) => {
+apiRouter.get('/auth/me', async (req, res) => {
   res.json({ user: getUserFromReq(req) });
 });
 
@@ -184,13 +184,13 @@ apiRouter.post('/research/search', async (req, res) => {
 });
 
 // ===================== SAVED REPORTS & HISTORY =====================
-apiRouter.get('/reports/saved', (req, res) => {
+apiRouter.get('/reports/saved', async (req, res) => {
   const user = getUserFromReq(req);
   const reports = await db.getSavedReports(user.id);
   res.json({ reports });
 });
 
-apiRouter.post('/reports/save', (req, res) => {
+apiRouter.post('/reports/save', async (req, res) => {
   const user = getUserFromReq(req);
   const { topic, type, reportData, notes } = req.body;
 
@@ -202,25 +202,26 @@ apiRouter.post('/reports/save', (req, res) => {
   res.json({ saved, message: 'Research saved to your private library.' });
 });
 
-apiRouter.post('/reports/toggle-favorite/:id', (req, res) => {
+apiRouter.post('/reports/toggle-favorite/:id', async (req, res) => {
+  const user = getUserFromReq(req);
   const fav = await db.toggleFavoriteReport(req.params.id, user.id);
   res.json({ favorite: fav });
 });
 
-apiRouter.delete('/reports/:id', (req, res) => {
+apiRouter.delete('/reports/:id', async (req, res) => {
   const user = getUserFromReq(req);
   const deleted = await db.deleteSavedReport(req.params.id, user.id);
   res.json({ success: deleted });
 });
 
-apiRouter.get('/history', (req, res) => {
+apiRouter.get('/history', async (req, res) => {
   const user = getUserFromReq(req);
   const history = await db.getHistory(user.id);
   res.json({ history });
 });
 
 // ===================== BILLING & PLANS =====================
-apiRouter.get('/billing/plans', (req, res) => {
+apiRouter.get('/billing/plans', async (req, res) => {
   const plans = await db.getPlans();
   res.json({ plans });
 });
@@ -237,7 +238,7 @@ apiRouter.post('/billing/checkout', async (req, res) => {
   }
 });
 
-apiRouter.post('/billing/activate', (req, res) => {
+apiRouter.post('/billing/activate', async (req, res) => {
   const user = getUserFromReq(req);
   const { planId } = req.body;
 
@@ -251,7 +252,7 @@ apiRouter.post('/billing/activate', (req, res) => {
 });
 
 // ===================== ADMIN ROUTES =====================
-apiRouter.get('/admin/stats', (req, res) => {
+apiRouter.get('/admin/stats', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -260,7 +261,7 @@ apiRouter.get('/admin/stats', (req, res) => {
   res.json({ stats });
 });
 
-apiRouter.get('/admin/users', (req, res) => {
+apiRouter.get('/admin/users', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -269,7 +270,7 @@ apiRouter.get('/admin/users', (req, res) => {
   res.json({ users });
 });
 
-apiRouter.post('/admin/users/:id/credits', (req, res) => {
+apiRouter.post('/admin/users/:id/credits', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -285,7 +286,7 @@ apiRouter.post('/admin/users/:id/credits', (req, res) => {
   res.json({ user: updated });
 });
 
-apiRouter.post('/admin/plans/:id', (req, res) => {
+apiRouter.post('/admin/plans/:id', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -294,7 +295,7 @@ apiRouter.post('/admin/plans/:id', (req, res) => {
   res.json({ plan: updated });
 });
 
-apiRouter.get('/admin/usage', (req, res) => {
+apiRouter.get('/admin/usage', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -303,7 +304,7 @@ apiRouter.get('/admin/usage', (req, res) => {
   res.json({ logs });
 });
 
-apiRouter.get('/admin/settings', (req, res) => {
+apiRouter.get('/admin/settings', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
@@ -322,11 +323,11 @@ apiRouter.get('/admin/settings', (req, res) => {
   res.json({ settings: enrichedSettings });
 });
 
-apiRouter.get('/ai/status', (req, res) => {
+apiRouter.get('/ai/status', async (req, res) => {
   res.json({ ai: geminiService.getAiStatus() });
 });
 
-apiRouter.post('/admin/settings', (req, res) => {
+apiRouter.post('/admin/settings', async (req, res) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
