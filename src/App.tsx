@@ -64,14 +64,12 @@ export default function App() {
   const [isPricingModalOpen, setIsPricingModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-  // Core Research State
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
   const [searchTopic, setSearchTopic] = useState<string>('Christian prayer');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAnalyzingUrl, setIsAnalyzingUrl] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Comparison State
   const [compareOpportunities, setCompareOpportunities] = useState<OpportunityItem[]>([
     DEMO_CHRISTIAN_PRAYER_REPORT.opportunities[0],
     DEMO_CHRISTIAN_PRAYER_REPORT.opportunities[1]
@@ -81,34 +79,31 @@ export default function App() {
     DEMO_CHRISTIAN_PRAYER_REPORT.competitors[1]
   ]);
 
-  // Saved & History State
-  // Never preload demo records into an authenticated user's private library.
   const [savedItems, setSavedItems] = useState<SavedResearchItem[]>([]);
   const [historyItems, setHistoryItems] = useState<ResearchHistoryItem[]>([]);
 
-  // Supabase Auth session lifecycle.
-  // Do not await Supabase auth methods from inside onAuthStateChange.
-  // Doing so can race the auth lock during an OAuth redirect.
   useEffect(() => {
     let mounted = true;
+    let initialized = false;
 
-    const applySession = async (session: any | null) => {
+    const finishSignedOut = () => {
       if (!mounted) return;
+      setCurrentUser(GUEST_USER);
+      setIsAuthenticated(false);
+      setPasswordRecovery(false);
+      setAuthLoading(false);
+    };
 
-      // A null session can be observed briefly while Supabase is still
-      // processing the OAuth redirect. Do not open the login modal here.
-      if (!session?.access_token) {
-        if (mounted) setAuthLoading(false);
+    const loadAuthenticatedUser = async (session: any | null) => {
+      if (!mounted || !session?.access_token) {
+        if (!initialized) finishSignedOut();
         return;
       }
 
       try {
-        // The OAuth session can be available a moment before the API is
-        // ready to create/load the corresponding KDP Digger account.
-        // Retry briefly instead of treating that transient state as logout.
         let lastError: Error | null = null;
 
-        for (let attempt = 0; attempt < 3; attempt += 1) {
+        for (let attempt = 0; attempt < 5; attempt += 1) {
           if (!mounted) return;
 
           try {
@@ -117,6 +112,7 @@ export default function App() {
                 Authorization: `Bearer ${session.access_token}`,
                 'Content-Type': 'application/json',
               },
+              cache: 'no-store'
             });
             const data = await res.json();
 
@@ -128,6 +124,7 @@ export default function App() {
                 setPasswordRecovery(false);
                 setIsLandingPage(false);
                 setAuthLoading(false);
+                initialized = true;
               }
               return;
             }
@@ -143,26 +140,25 @@ export default function App() {
         throw lastError || new Error('Unable to load account');
       } catch (error) {
         console.error('Failed to load authenticated KDP Digger user:', error);
-        // Keep the user signed out only after a real authenticated session
-        // failed to load, rather than during the initial OAuth URL transition.
         if (mounted) {
+          // Keep the auth modal closed while a real Supabase session still exists.
+          // The user should never be bounced back to Google sign-in merely because
+          // the application profile endpoint is temporarily unavailable.
           setCurrentUser(GUEST_USER);
           setIsAuthenticated(false);
           setAuthLoading(false);
+          setIsAuthModalOpen(false);
+          initialized = true;
         }
       }
     };
 
-    // Subscribe before reading the current session so an OAuth redirect
-    // event cannot be missed during initial app startup.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT') {
-        setCurrentUser(GUEST_USER);
-        setIsAuthenticated(false);
-        setPasswordRecovery(false);
-        setAuthLoading(false);
+        initialized = true;
+        finishSignedOut();
         return;
       }
 
@@ -170,36 +166,39 @@ export default function App() {
         setPasswordRecovery(true);
         setIsAuthModalOpen(true);
         setAuthLoading(false);
+        initialized = true;
         return;
       }
 
-      if (
-        event === 'INITIAL_SESSION' ||
-        event === 'SIGNED_IN' ||
-        event === 'TOKEN_REFRESHED' ||
-        event === 'USER_UPDATED'
-      ) {
-        // Run outside the Supabase auth callback.
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         window.setTimeout(() => {
-          void applySession(session);
+          void loadAuthenticatedUser(session);
         }, 0);
       }
     });
 
-    // Check for a session already restored before the listener ran.
-    // INITIAL_SESSION is the authoritative startup event. This fallback also
-    // prevents the app from remaining on the loading screen if no session exists.
+    // Read the persisted session after installing the listener. OAuth redirects
+    // are therefore handled by either INITIAL_SESSION or this explicit check.
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted && session) {
-        void applySession(session);
+      if (!mounted) return;
+      if (session?.access_token) {
+        void loadAuthenticatedUser(session);
+      } else if (!initialized) {
+        finishSignedOut();
       }
+    }).catch((error) => {
+      console.error('Unable to restore Supabase session:', error);
+      finishSignedOut();
     });
 
-    // Safety timeout: if Supabase has no session and no auth event arrives,
-    // release the loading screen and let the normal sign-in modal appear.
     const loadingTimeout = window.setTimeout(() => {
-      if (mounted) setAuthLoading(false);
-    }, 5000);
+      if (mounted && !initialized) {
+        // Do not open the sign-in modal here. If Supabase is still restoring an
+        // OAuth session, opening it creates the repeated "sign in again" loop.
+        setAuthLoading(false);
+        initialized = true;
+      }
+    }, 12000);
 
     return () => {
       mounted = false;
@@ -207,16 +206,20 @@ export default function App() {
       window.clearTimeout(loadingTimeout);
     };
   }, []);
+
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) setIsAuthModalOpen(true);
+    if (!authLoading && !isAuthenticated) {
+      // Only show sign-in after initialization has completed. The auth callback
+      // explicitly keeps the modal closed when a valid Supabase session exists
+      // but the application profile endpoint is temporarily unavailable.
+      setIsAuthModalOpen(true);
+    }
   }, [authLoading, isAuthenticated]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
-
-
 
   // Core Research Execution
   const handleSearch = async (topic: string) => {
@@ -278,7 +281,6 @@ export default function App() {
     }
   };
 
-  // URL / ASIN Competitor Analyzer
   const handleAnalyzeCustomUrl = async (urlOrAsin: string) => {
     setIsAnalyzingUrl(true);
     try {
@@ -293,20 +295,11 @@ export default function App() {
       }
 
       const book = parseData.bookInfo;
-      // Add analyzed book to competitors in current report
-      setCurrentReport(prev => ({
-        ...prev,
-        competitors: [book, ...prev.competitors]
-      }));
-
-      // Automatically add to competitor comparison
+      setCurrentReport(prev => ({ ...prev, competitors: [book, ...prev.competitors] }));
       setCompareCompetitors(prev => {
-        if (!prev.some(b => b.id === book.id)) {
-          return [book, ...prev].slice(0, 4);
-        }
+        if (!prev.some(b => b.id === book.id)) return [book, ...prev].slice(0, 4);
         return prev;
       });
-
       showToast(`Analyzed competitor: "${book.title}"`);
     } catch (err: any) {
       alert(err.message || 'Unable to inspect book. Please verify ASIN or URL.');
@@ -315,7 +308,6 @@ export default function App() {
     }
   };
 
-  // Opportunity Actions
   const handleSaveOpportunity = (opp: OpportunityItem) => {
     const existing = savedItems.find(s => s.id === `saved_${opp.id}`);
     if (existing) {
@@ -337,50 +329,38 @@ export default function App() {
     showToast(`Saved "${opp.title}" to library!`);
   };
 
-  const isOpportunitySaved = (oppId: string) => {
-    return savedItems.some(s => s.id === `saved_${oppId}`);
-  };
+  const isOpportunitySaved = (oppId: string) => savedItems.some(s => s.id === `saved_${oppId}`);
 
   const handleCompareOpportunity = (opp: OpportunityItem) => {
     setCompareOpportunities(prev => {
       const exists = prev.some(o => o.id === opp.id);
-      if (exists) {
-        return prev.filter(o => o.id !== opp.id);
-      }
+      if (exists) return prev.filter(o => o.id !== opp.id);
       if (prev.length >= 4) {
         alert('You can compare a maximum of 4 opportunities at once.');
         return prev;
       }
       return [...prev, opp];
     });
-    showToast(`Updated comparison matrix.`);
+    showToast('Updated comparison matrix.');
   };
 
-  const isOpportunityInCompare = (oppId: string) => {
-    return compareOpportunities.some(o => o.id === oppId);
-  };
+  const isOpportunityInCompare = (oppId: string) => compareOpportunities.some(o => o.id === oppId);
 
-  // Competitor Comparison Actions
   const handleCompareCompetitor = (book: CompetitorBook) => {
     setCompareCompetitors(prev => {
       const exists = prev.some(b => b.id === book.id);
-      if (exists) {
-        return prev.filter(b => b.id !== book.id);
-      }
+      if (exists) return prev.filter(b => b.id !== book.id);
       if (prev.length >= 4) {
         alert('You can compare a maximum of 4 books at once.');
         return prev;
       }
       return [...prev, book];
     });
-    showToast(`Updated competitor comparison.`);
+    showToast('Updated competitor comparison.');
   };
 
-  const isBookInComparison = (bookId: string) => {
-    return compareCompetitors.some(b => b.id === bookId);
-  };
+  const isBookInComparison = (bookId: string) => compareCompetitors.some(b => b.id === bookId);
 
-  // Plan Activation
   const handleActivatePlan = async (planId: string) => {
     const res = await apiFetch('/api/billing/activate', {
       method: 'POST',
@@ -396,20 +376,13 @@ export default function App() {
     }
   };
 
-
-
   const handleSignOut = async () => {
     try {
-      // Sign out only this browser session. A global sign-out can revoke
-      // refresh tokens in other browsers/devices and leave them in a stale
-      // authenticated state until their token expires.
       const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) throw error;
     } catch (error) {
       console.error('KDP Digger sign-out failed:', error);
     } finally {
-      // Always reset the local React state so the current browser immediately
-      // returns to the sign-in screen even if the network request fails.
       setCurrentUser(GUEST_USER);
       setIsAuthenticated(false);
       setPasswordRecovery(false);
@@ -428,7 +401,6 @@ export default function App() {
 
   return (
     <div id="kdp-app-root" className="min-h-screen bg-slate-100/70 font-sans text-slate-900 flex flex-col">
-      {/* Toast Notification Banner */}
       {toastMessage && (
         <div id="app-toast-notification" className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-slate-800 flex items-center gap-2 animate-bounce">
           <Sparkles className="w-4 h-4 text-amber-400" />
@@ -436,7 +408,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Header */}
       <Header
         currentUser={currentUser}
         onSearch={handleSearch}
@@ -448,7 +419,6 @@ export default function App() {
         onSignOut={handleSignOut}
       />
 
-      {/* Landing Page Mode */}
       {!isAuthenticated || isLandingPage ? (
         <LandingPageView
           onStartResearch={(sampleTopic) => {
@@ -462,46 +432,27 @@ export default function App() {
           onOpenPricing={() => setIsPricingModalOpen(true)}
         />
       ) : (
-        /* SaaS App Mode */
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Navigation Sidebar */}
           <Sidebar
             activeTab={activeTab}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-            }}
+            onSelectTab={setActiveTab}
             currentUser={currentUser}
             isOpenMobile={isMobileSidebarOpen}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
             savedCount={savedItems.length}
           />
 
-          {/* Main Content Area */}
           <main className="flex-1 lg:pl-64 overflow-y-auto p-4 sm:p-6 lg:p-8">
             <div className="max-w-6xl mx-auto">
-              {/* Research Progress Screen when querying */}
-              {isLoading && (
-                <ResearchProgress topic={searchTopic} />
-              )}
+              {isLoading && <ResearchProgress topic={searchTopic} />}
 
               {!isLoading && (
                 <>
-                  {/* Dashboard Tab */}
                   {activeTab === 'dashboard' && (
                     <div className="space-y-8">
-                      {/* Hero Search Box */}
-                      <ResearchHero
-                        onSearch={handleSearch}
-                        isLoading={isLoading}
-                        activeTopic={searchTopic}
-                      />
-
-                      {/* Stat summary cards */}
+                      <ResearchHero onSearch={handleSearch} isLoading={isLoading} activeTopic={searchTopic} />
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                        <div
-                          onClick={() => setActiveTab('keywords')}
-                          className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer"
-                        >
+                        <div onClick={() => setActiveTab('keywords')} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer">
                           <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1">Keywords</span>
                           <div className="text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-between">
                             <span>{currentReport.keywords.highRelevance.length + currentReport.keywords.longTail.length}</span>
@@ -509,11 +460,7 @@ export default function App() {
                           </div>
                           <span className="text-[10px] text-slate-400 mt-1 block">Live Amazon queries</span>
                         </div>
-
-                        <div
-                          onClick={() => setActiveTab('niches')}
-                          className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer"
-                        >
+                        <div onClick={() => setActiveTab('niches')} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer">
                           <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1">Sub-Niches</span>
                           <div className="text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-between">
                             <span>{currentReport.niches.length}</span>
@@ -521,11 +468,7 @@ export default function App() {
                           </div>
                           <span className="text-[10px] text-slate-400 mt-1 block">Market angles</span>
                         </div>
-
-                        <div
-                          onClick={() => setActiveTab('competitors')}
-                          className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer"
-                        >
+                        <div onClick={() => setActiveTab('competitors')} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer">
                           <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1">Competitors</span>
                           <div className="text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-between">
                             <span>{currentReport.competitors.length}</span>
@@ -533,11 +476,7 @@ export default function App() {
                           </div>
                           <span className="text-[10px] text-slate-400 mt-1 block">Title & format snapshots</span>
                         </div>
-
-                        <div
-                          onClick={() => setActiveTab('opportunity-finder')}
-                          className="bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer"
-                        >
+                        <div onClick={() => setActiveTab('opportunity-finder')} className="bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300 rounded-xl p-4 shadow-xs hover:border-amber-400 transition-colors cursor-pointer">
                           <span className="text-[11px] font-extrabold text-amber-900 uppercase block mb-1">Opportunities</span>
                           <div className="text-xl sm:text-2xl font-black text-amber-950 flex items-center justify-between">
                             <span>{currentReport.opportunities.length}</span>
@@ -546,8 +485,6 @@ export default function App() {
                           <span className="text-[10px] text-amber-800 font-semibold mt-1 block">Narrowed concepts &rarr;</span>
                         </div>
                       </div>
-
-                      {/* Spotlight Opportunity Card */}
                       {currentReport.opportunities[0] && (
                         <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -557,28 +494,16 @@ export default function App() {
                                 <DemandBadge signal={currentReport.opportunities[0].demandSignal} />
                                 <MarketMaturityBadge maturity={currentReport.opportunities[0].marketMaturity} />
                               </div>
-                              <h3 className="text-xl font-black text-slate-900">
-                                Top Opportunity: {currentReport.opportunities[0].title}
-                              </h3>
+                              <h3 className="text-xl font-black text-slate-900">Top Opportunity: {currentReport.opportunities[0].title}</h3>
                             </div>
-                            <button
-                              onClick={() => setActiveTab('opportunity-finder')}
-                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 self-start transition-colors shadow-xs"
-                            >
-                              <span>Explore in Opportunity Finder</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
+                            <button onClick={() => setActiveTab('opportunity-finder')} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 self-start transition-colors shadow-xs">
+                              <span>Explore in Opportunity Finder</span><ArrowRight className="w-3.5 h-3.5" />
                             </button>
                           </div>
-
-                          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
-                            {currentReport.opportunities[0].opportunityExplanation}
-                          </p>
-
+                          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">{currentReport.opportunities[0].opportunityExplanation}</p>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                             {currentReport.opportunities[0].suggestedBookAngles.map((angle, idx) => (
-                              <div key={idx} className="p-3 bg-amber-50/50 border border-amber-200 rounded-lg text-xs text-slate-800 font-medium">
-                                &ldquo;{angle}&rdquo;
-                              </div>
+                              <div key={idx} className="p-3 bg-amber-50/50 border border-amber-200 rounded-lg text-xs text-slate-800 font-medium">&ldquo;{angle}&rdquo;</div>
                             ))}
                           </div>
                         </div>
@@ -586,184 +511,40 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Feature 1: Keyword Research */}
-                  {activeTab === 'keywords' && (
-                    <KeywordResearchView
-                      primaryKeyword={searchTopic}
-                      keywords={currentReport.keywords}
-                      onSelectKeyword={handleSearch}
-                    />
-                  )}
-
-                  {/* Feature 2: Niche Research */}
-                  {activeTab === 'niches' && (
-                    <NicheResearchView
-                      niches={currentReport.niches}
-                      topic={searchTopic}
-                      onExploreNiche={handleSearch}
-                      onSelectKeyword={handleSearch}
-                    />
-                  )}
-
-                  {/* Feature 3 & 12: Competitor Research */}
-                  {activeTab === 'competitors' && (
-                    <CompetitorResearchView
-                      competitors={currentReport.competitors}
-                      marketGaps={currentReport.marketGaps}
-                      topic={searchTopic}
-                      onCompareCompetitor={handleCompareCompetitor}
-                      isBookInComparison={isBookInComparison}
-                      onAnalyzeCustomUrl={handleAnalyzeCustomUrl}
-                      isAnalyzingUrl={isAnalyzingUrl}
-                    />
-                  )}
-
-                  {/* Feature 5: Opportunity Finder */}
-                  {activeTab === 'opportunity-finder' && (
-                    <OpportunityFinderView
-                      opportunities={currentReport.opportunities}
-                      topic={searchTopic}
-                      onSaveOpportunity={handleSaveOpportunity}
-                      isOpportunitySaved={isOpportunitySaved}
-                      onCompareOpportunity={handleCompareOpportunity}
-                      isOpportunityInCompare={isOpportunityInCompare}
-                      onViewFullReport={() => setActiveTab('opportunity-report')}
-                      onSelectKeyword={handleSearch}
-                    />
-                  )}
-
-                  {/* Feature 10: Compare Opportunities */}
-                  {activeTab === 'compare-opportunities' && (
-                    <CompareOpportunitiesView
-                      opportunities={compareOpportunities}
-                      onRemoveFromCompare={(id) => setCompareOpportunities(prev => prev.filter(o => o.id !== id))}
-                      onSelectOpportunity={(opp) => {
-                        setActiveTab('opportunity-finder');
-                      }}
-                      onClearAll={() => setCompareOpportunities([])}
-                    />
-                  )}
-
-                  {/* Feature 11: Competitor Comparison */}
-                  {activeTab === 'compare-competitors' && (
-                    <CompetitorComparisonView
-                      competitors={compareCompetitors}
-                      onRemoveCompetitor={(id) => setCompareCompetitors(prev => prev.filter(b => b.id !== id))}
-                      onClearAll={() => setCompareCompetitors([])}
-                    />
-                  )}
-
-                  {/* Feature 6 & 14: AI Opportunity Report */}
-                  {activeTab === 'opportunity-report' && (
-                    <OpportunityReportView
-                      report={currentReport}
-                      onSelectKeyword={handleSearch}
-                    />
-                  )}
-
-                  {/* Feature 9: Saved Research */}
-                  {activeTab === 'saved-research' && (
-                    <SavedResearchView
-                      savedItems={savedItems}
-                      onOpenItem={(item) => {
-                        if (item.reportData) {
-                          setCurrentReport(item.reportData);
-                          setSearchTopic(item.topic);
-                          setActiveTab('opportunity-finder');
-                          showToast(`Opened saved research for "${item.topic}".`);
-                        }
-                      }}
-                      onDeleteItem={(id) => {
-                        setSavedItems(prev => prev.filter(s => s.id !== id));
-                        showToast('Item deleted.');
-                      }}
-                      onToggleFavorite={(id) => {
-                        setSavedItems(prev => prev.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s));
-                      }}
-                    />
-                  )}
-
-                  {/* Feature 13: History */}
-                  {activeTab === 'history' && (
-                    <HistoryView
-                      history={historyItems}
-                      onReRunSearch={(topic) => handleSearch(topic)}
-                    />
-                  )}
-
-                  {/* Pricing Tab */}
+                  {activeTab === 'keywords' && <KeywordResearchView primaryKeyword={searchTopic} keywords={currentReport.keywords} onSelectKeyword={handleSearch} />}
+                  {activeTab === 'niches' && <NicheResearchView niches={currentReport.niches} topic={searchTopic} onExploreNiche={handleSearch} onSelectKeyword={handleSearch} />}
+                  {activeTab === 'competitors' && <CompetitorResearchView competitors={currentReport.competitors} marketGaps={currentReport.marketGaps} topic={searchTopic} onCompareCompetitor={handleCompareCompetitor} isBookInComparison={isBookInComparison} onAnalyzeCustomUrl={handleAnalyzeCustomUrl} isAnalyzingUrl={isAnalyzingUrl} />}
+                  {activeTab === 'opportunity-finder' && <OpportunityFinderView opportunities={currentReport.opportunities} topic={searchTopic} onSaveOpportunity={handleSaveOpportunity} isOpportunitySaved={isOpportunitySaved} onCompareOpportunity={handleCompareOpportunity} isOpportunityInCompare={isOpportunityInCompare} onViewFullReport={() => setActiveTab('opportunity-report')} onSelectKeyword={handleSearch} />}
+                  {activeTab === 'compare-opportunities' && <CompareOpportunitiesView opportunities={compareOpportunities} onRemoveFromCompare={(id) => setCompareOpportunities(prev => prev.filter(o => o.id !== id))} onSelectOpportunity={() => setActiveTab('opportunity-finder')} onClearAll={() => setCompareOpportunities([])} />}
+                  {activeTab === 'compare-competitors' && <CompetitorComparisonView competitors={compareCompetitors} onRemoveCompetitor={(id) => setCompareCompetitors(prev => prev.filter(b => b.id !== id))} onClearAll={() => setCompareCompetitors([])} />}
+                  {activeTab === 'opportunity-report' && <OpportunityReportView report={currentReport} onSelectKeyword={handleSearch} />}
+                  {activeTab === 'saved-research' && <SavedResearchView savedItems={savedItems} onOpenItem={(item) => { if (item.reportData) { setCurrentReport(item.reportData); setSearchTopic(item.topic); setActiveTab('opportunity-finder'); showToast(`Opened saved research for "${item.topic}".`); } }} onDeleteItem={(id) => { setSavedItems(prev => prev.filter(s => s.id !== id)); showToast('Item deleted.'); }} onToggleFavorite={(id) => setSavedItems(prev => prev.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s))} />}
+                  {activeTab === 'history' && <HistoryView history={historyItems} onReRunSearch={handleSearch} />}
                   {activeTab === 'pricing' && (
                     <div className="space-y-6">
                       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1">
-                          <Coins className="w-4 h-4" />
-                          <span>Plans & Credits</span>
-                        </div>
-                        <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                          Research Credits & Fair-Use Pricing
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Active balance: <strong>{currentUser.credits} research credits</strong> on <strong>{currentUser.plan}</strong>.
-                        </p>
+                        <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1"><Coins className="w-4 h-4" /><span>Plans & Credits</span></div>
+                        <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Research Credits & Fair-Use Pricing</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Active balance: <strong>{currentUser.credits} research credits</strong> on <strong>{currentUser.plan}</strong>.</p>
                       </div>
-
-                      <button
-                        onClick={() => setIsPricingModalOpen(true)}
-                        className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center gap-2"
-                      >
-                        <Coins className="w-4 h-4" />
-                        <span>Open Plans & Add Credits ($1 &ndash; $3)</span>
-                      </button>
+                      <button onClick={() => setIsPricingModalOpen(true)} className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center gap-2"><Coins className="w-4 h-4" /><span>Open Plans & Add Credits ($1 &ndash; $3)</span></button>
                     </div>
                   )}
-
-                  {/* Account Tab */}
                   {activeTab === 'account' && (
                     <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs max-w-xl mx-auto space-y-4">
                       <h3 className="text-lg font-bold text-slate-900">Your Account Profile</h3>
                       <div className="space-y-2 text-xs">
-                        <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Name</span>
-                          <span className="font-semibold text-slate-900">{currentUser.name}</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Email</span>
-                          <span className="font-semibold text-slate-900">{currentUser.email}</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Active Plan</span>
-                          <span className="font-semibold text-slate-900">{currentUser.plan}</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Credits Remaining</span>
-                          <span className="font-bold text-amber-700 text-sm">{currentUser.credits}</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Role</span>
-                          <span className="font-semibold text-indigo-700 uppercase">{currentUser.role}</span>
-                        </div>
+                        <div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{currentUser.name}</span></div>
+                        <div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Email</span><span className="font-semibold text-slate-900">{currentUser.email}</span></div>
+                        <div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Active Plan</span><span className="font-semibold text-slate-900">{currentUser.plan}</span></div>
+                        <div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Credits Remaining</span><span className="font-bold text-amber-700 text-sm">{currentUser.credits}</span></div>
+                        <div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Role</span><span className="font-semibold text-indigo-700 uppercase">{currentUser.role}</span></div>
                       </div>
-
-                      <div className="pt-4 flex items-center justify-end">
-                        <button
-                          onClick={handleSignOut}
-                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
-                        >
-                          Sign Out
-                        </button>
-                      </div>
+                      <div className="pt-4 flex items-center justify-end"><button onClick={handleSignOut} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold">Sign Out</button></div>
                     </div>
                   )}
-
-                  {/* Help & Principles Tab */}
-                  {activeTab === 'help' && (
-                    <HelpView />
-                  )}
-
-                  {/* Admin Console Tab */}
-                  {activeTab === 'admin' && currentUser.role === 'admin' && (
-                    <AdminPanelView currentUser={currentUser} />
-                  )}
+                  {activeTab === 'help' && <HelpView />}
+                  {activeTab === 'admin' && currentUser.role === 'admin' && <AdminPanelView currentUser={currentUser} />}
                 </>
               )}
             </div>
@@ -771,15 +552,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Pricing Modal */}
-      <PricingModal
-        isOpen={isPricingModalOpen}
-        onClose={() => setIsPricingModalOpen(false)}
-        currentUser={currentUser}
-        onActivatePlan={handleActivatePlan}
-      />
-
-      {/* Auth Modal */}
+      <PricingModal isOpen={isPricingModalOpen} onClose={() => setIsPricingModalOpen(false)} currentUser={currentUser} onActivatePlan={handleActivatePlan} />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => { setIsAuthModalOpen(false); setPasswordRecovery(false); }}
@@ -792,6 +565,7 @@ export default function App() {
           setIsAuthenticated(true);
           setPasswordRecovery(false);
           setIsLandingPage(false);
+          setIsAuthModalOpen(false);
         }}
       />
     </div>
