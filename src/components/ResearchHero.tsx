@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Sparkles, AlertCircle, ArrowRight, BookOpen, Compass, KeyRound, Lightbulb } from 'lucide-react';
+import { Search, Sparkles, AlertCircle, ArrowRight, BookOpen, ChevronDown, Lightbulb } from 'lucide-react';
 
 interface ResearchHeroProps {
   onSearch: (topic: string) => void;
@@ -7,13 +7,129 @@ interface ResearchHeroProps {
   activeTopic?: string;
 }
 
-const QUICK_EXAMPLES = [
-  'Christian prayer',
-  'anxiety journal',
-  'kids dinosaur coloring book',
-  'gratitude journal',
-  'murder mystery puzzles',
-  'large print word search'
+interface NicheGroup {
+  name: string;
+  icon: string;
+  subNiches: string[];
+}
+
+const POPULAR_NICHE_GROUPS: NicheGroup[] = [
+  {
+    name: 'Christian & Prayer',
+    icon: '✝',
+    subNiches: [
+      'Daily Christian Prayer',
+      'Morning Prayers',
+      'Bedtime Prayers',
+      'Prayer for Anxiety & Peace',
+      'Prayer Journals',
+      'Bible Verse Prayer',
+      'Prayers for Women',
+      'Prayers for Men',
+      'Prayers for Seniors',
+      'Prayers for Children',
+      'Prayers for Couples',
+      'Healing & Strength Prayers'
+    ]
+  },
+  {
+    name: 'Coloring Books',
+    icon: '✎',
+    subNiches: [
+      'Animals',
+      'Kids Coloring',
+      'Mandala',
+      'Stress Relief',
+      'Cute & Cozy',
+      'Seasonal Coloring',
+      'Educational Coloring',
+      'Large Print Coloring'
+    ]
+  },
+  {
+    name: 'Journals & Planners',
+    icon: '▤',
+    subNiches: [
+      'Gratitude Journals',
+      'Anxiety Journals',
+      'Wellness Journals',
+      'Prayer Journals',
+      'Daily Planners',
+      'Fitness Journals',
+      'Meal Planners',
+      'Prompt Journals'
+    ]
+  },
+  {
+    name: 'Puzzles & Activity',
+    icon: '▦',
+    subNiches: [
+      'Word Search',
+      'Crossword Puzzles',
+      'Sudoku',
+      'Mazes',
+      'Logic Puzzles',
+      'Murder Mystery Puzzles',
+      'Kids Activity Books',
+      'Brain Games'
+    ]
+  },
+  {
+    name: 'Self-Help & Wellness',
+    icon: '♡',
+    subNiches: [
+      'Anxiety & Stress',
+      'Mindfulness',
+      'Sleep & Relaxation',
+      'Personal Growth',
+      'Motivation',
+      'Habit Building',
+      'Confidence',
+      'Relationships'
+    ]
+  },
+  {
+    name: 'Kids & Education',
+    icon: '★',
+    subNiches: [
+      'Preschool Learning',
+      'Alphabet & Numbers',
+      'Handwriting Practice',
+      'Math Workbooks',
+      'Science Activity',
+      'Homeschool',
+      'Reading Practice',
+      'Kids Coloring'
+    ]
+  },
+  {
+    name: 'Cookbooks & Food',
+    icon: '♨',
+    subNiches: [
+      'Air Fryer',
+      'Healthy Recipes',
+      'Easy Family Meals',
+      'Baking',
+      'Slow Cooker',
+      'Meal Prep',
+      'Diabetic-Friendly',
+      'High-Protein Recipes'
+    ]
+  },
+  {
+    name: 'Large Print',
+    icon: 'A',
+    subNiches: [
+      'Large Print Word Search',
+      'Large Print Puzzles',
+      'Large Print Coloring',
+      'Large Print Crosswords',
+      'Large Print Bible',
+      'Large Print Devotionals',
+      'Large Print Activity Books',
+      'Large Print Books for Seniors'
+    ]
+  }
 ];
 
 export const ResearchHero: React.FC<ResearchHeroProps> = ({
@@ -21,16 +137,16 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
   isLoading,
   activeTopic = ''
 }) => {
-  const [inputVal, setInputVal] = useState(activeTopic);
+  const [inputVal, setInputVal] = useState(activeTopic || 'Christian prayer');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedNiche, setSelectedNiche] = useState('Christian & Prayer');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (activeTopic) setInputVal(activeTopic);
   }, [activeTopic]);
 
-  // Real Amazon autocomplete suggestions
   useEffect(() => {
     if (!inputVal.trim() || inputVal.length < 2) {
       setSuggestions([]);
@@ -70,31 +186,37 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
     }
   };
 
-  const handleSelectExample = (example: string) => {
-    setInputVal(example);
+  const handleSelectNiche = (group: NicheGroup) => {
+    setSelectedNiche(group.name);
     setShowDropdown(false);
-    onSearch(example);
   };
 
+  const handleSelectSubNiche = (subNiche: string) => {
+    setInputVal(subNiche);
+    setShowDropdown(false);
+  };
+
+  const selectedGroup = POPULAR_NICHE_GROUPS.find(group => group.name === selectedNiche) || POPULAR_NICHE_GROUPS[0];
+
   return (
-    <div id="dashboard-hero-section" className="bg-gradient-to-b from-white via-amber-50/20 to-white border border-slate-200/80 rounded-2xl p-6 sm:p-10 shadow-xs mb-8">
-      <div className="max-w-3xl mx-auto text-center">
-        {/* Tagline Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100/70 border border-amber-200 text-amber-900 text-xs font-semibold mb-4">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>KDP Digger &middot; Dig Deeper</span>
+    <div id="dashboard-hero-section" className="bg-gradient-to-b from-white via-amber-50/20 to-white border border-slate-200/80 rounded-2xl p-5 sm:p-8 shadow-xs mb-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100/70 border border-amber-200 text-amber-900 text-xs font-semibold mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>KDP Digger · Dig Deeper</span>
+          </div>
+
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight mb-2">
+            Dig Deeper. Find Better KDP Opportunities.
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Start with a KDP topic, then explore popular niches and drill down into focused sub-niches before researching the opportunity.
+          </p>
         </div>
 
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight mb-3">
-          Dig Deeper. Find Better KDP Opportunities.
-        </h1>
-        <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto mb-8 leading-relaxed">
-          Research keywords, niches, competitor positioning, and market gaps before you spend time creating a book.
-        </p>
-
-        {/* Large Input Box */}
-        <div ref={wrapperRef} className="relative max-w-2xl mx-auto mb-4">
-          <form onSubmit={handleSubmit} className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 bg-white rounded-xl border-2 border-slate-300 hover:border-amber-400 focus-within:border-amber-500 focus-within:ring-4 focus-within:ring-amber-100 transition-all shadow-sm">
+        <div ref={wrapperRef} className="relative max-w-3xl mx-auto mb-6">
+          <form onSubmit={handleSubmit} className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 bg-white rounded-xl border-2 border-amber-400 focus-within:ring-4 focus-within:ring-amber-100 transition-all shadow-sm">
             <div className="relative flex-1 flex items-center pl-3">
               <Search className="w-5 h-5 text-slate-400 shrink-0" />
               <input
@@ -106,8 +228,8 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
                   setShowDropdown(true);
                 }}
                 onFocus={() => setShowDropdown(true)}
-                placeholder="Enter a topic, keyword, niche or Amazon book URL..."
-                className="w-full py-2.5 px-3 text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none bg-transparent"
+                placeholder="Search a KDP topic, keyword, niche or Amazon book URL..."
+                className="w-full py-3 px-3 text-slate-900 placeholder:text-slate-400 text-sm sm:text-base outline-none bg-transparent"
                 disabled={isLoading}
               />
             </div>
@@ -132,7 +254,6 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
             </button>
           </form>
 
-          {/* Autocomplete Dropdown */}
           {showDropdown && suggestions.length > 0 && (
             <div id="hero-suggestions-dropdown" className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-30 text-left">
               <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
@@ -148,7 +269,10 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
                     <button
                       id={`hero-suggestion-${idx}`}
                       type="button"
-                      onClick={() => handleSelectExample(item)}
+                      onClick={() => {
+                        setInputVal(item);
+                        setShowDropdown(false);
+                      }}
                       className="w-full text-left px-4 py-2.5 text-sm text-slate-800 hover:bg-amber-50/70 hover:text-amber-950 flex items-center justify-between group transition-colors"
                     >
                       <span className="flex items-center gap-2">
@@ -164,28 +288,72 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
           )}
         </div>
 
-        {/* Quick Examples */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs mb-5">
-          <span className="text-slate-500 font-medium flex items-center gap-1">
-            <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-            Quick examples:
-          </span>
-          {QUICK_EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              id={`quick-example-${ex.replace(/\s+/g, '-').toLowerCase()}`}
-              type="button"
-              onClick={() => handleSelectExample(ex)}
-              disabled={isLoading}
-              className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-200/80 font-medium transition-colors"
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
+        <section aria-labelledby="popular-kdp-niches" className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 id="popular-kdp-niches" className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                KDP Popular Niches
+              </h2>
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                Choose a broad niche to reveal related sub-niches.
+              </p>
+            </div>
+            <span className="hidden sm:block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Explore &amp; drill down
+            </span>
+          </div>
 
-        {/* Analytical Disclaimer Note */}
-        <div className="flex items-center justify-center gap-1.5 text-xs text-slate-600 bg-slate-50/90 border border-slate-200/60 rounded-lg py-2 px-3 max-w-xl mx-auto">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+            {POPULAR_NICHE_GROUPS.map(group => {
+              const active = group.name === selectedNiche;
+              return (
+                <button
+                  key={group.name}
+                  type="button"
+                  onClick={() => handleSelectNiche(group)}
+                  className={`shrink-0 px-3 py-2 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    active
+                      ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-amber-300 hover:bg-amber-50'
+                  }`}
+                >
+                  <span aria-hidden="true">{group.icon}</span>
+                  <span>{group.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    active ? 'bg-white/50' : 'bg-slate-100 text-slate-500'
+                  }`}>{group.subNiches.length}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 bg-slate-50/80 border border-slate-200 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <div className="text-xs font-extrabold text-slate-900">{selectedGroup.name} Sub-Niches</div>
+                <div className="text-[10px] text-slate-500">Click a sub-niche to place it in the research bar.</div>
+              </div>
+              <ChevronDown className="w-4 h-4 text-slate-400" />
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {selectedGroup.subNiches.map(subNiche => (
+                <button
+                  key={subNiche}
+                  type="button"
+                  onClick={() => handleSelectSubNiche(subNiche)}
+                  disabled={isLoading}
+                  className="px-2.5 py-1.5 rounded-md bg-white border border-slate-200 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-900 text-[11px] sm:text-xs font-medium text-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {subNiche}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="flex items-center justify-center gap-1.5 text-xs text-slate-600 bg-slate-50/90 border border-slate-200/60 rounded-lg py-2 px-3 max-w-2xl mx-auto mt-5">
           <AlertCircle className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           <span>Research results are based on available market data and AI analysis. Results are indicators, not guarantees of sales.</span>
         </div>
