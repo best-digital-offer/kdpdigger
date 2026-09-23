@@ -669,18 +669,12 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="pt-4 flex items-center justify-between">
+                      <div className="pt-4 flex items-center justify-end">
                         <button
-                          onClick={handleSwitchUserRole}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
-                        >
-                          Switch to {currentUser.role === 'admin' ? 'User' : 'Admin'} Mode
-                        </button>
-                        <button
-                          onClick={() => setIsAuthModalOpen(true)}
+                          onClick={handleSignOut}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold"
                         >
-                          Switch Account
+                          Sign Out
                         </button>
                       </div>
                     </div>
