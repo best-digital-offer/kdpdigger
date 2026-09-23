@@ -83,7 +83,8 @@ export class Database {
       const user=await this.getUserById(userId);
       return {success:true,creditsRemaining:user?.role==='admin'?999:Number(data),message:undefined};
     } catch(error:any) {
-      return {success:false,creditsRemaining:0,message:error.message || 'Unable to update credits.'};
+      console.error('Credit deduction failed:', error);
+      throw new Error(error?.message || 'Unable to update credits.');
     }
   }
 
