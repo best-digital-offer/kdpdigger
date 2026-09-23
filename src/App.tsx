@@ -57,6 +57,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User>(GUEST_USER);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLandingPage, setIsLandingPage] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -144,6 +145,12 @@ export default function App() {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(GUEST_USER);
         setIsAuthenticated(false);
+        setPasswordRecovery(false);
+        return;
+      }
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecovery(true);
+        setIsAuthModalOpen(true);
         return;
       }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
@@ -711,13 +718,15 @@ export default function App() {
       {/* Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => { setIsAuthModalOpen(false); setPasswordRecovery(false); }}
+        passwordRecovery={passwordRecovery}
         onAuthenticated={async () => {
           const res = await apiFetch('/api/auth/me');
           const data = await res.json();
           if (!res.ok || !data.user) throw new Error(data.error || 'Unable to load account');
           setCurrentUser(data.user);
           setIsAuthenticated(true);
+          setPasswordRecovery(false);
           setIsLandingPage(false);
         }}
       />
