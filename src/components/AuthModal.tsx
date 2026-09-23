@@ -201,7 +201,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <div className="lg:w-1/2 bg-white flex items-center justify-center p-5 sm:p-7 lg:p-8 overflow-y-auto">
             <div className="w-full max-w-md">
               <div className="text-center">
-                <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover mx-auto shadow-lg" />
+                <img src="/kdp-digger-logo.svg" alt="KDP Digger" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover mx-auto shadow-lg" />
                 <h2 className="mt-4 text-xl sm:text-2xl font-black text-slate-950">Sign {mode === 'signin' ? 'in' : 'up'} to KDP Digger</h2>
                 <p className="mt-1 text-xs sm:text-sm text-slate-500">Access your account and continue your research journey</p>
               </div>
