@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Sparkles, User as UserIcon, Menu, ExternalLink, ShieldCheck, ChevronDown, Coins, LogOut } from 'lucide-react';
 import { User } from '../types';
+import { apiFetch } from '../lib/supabase.ts';
 
 interface HeaderProps {
   currentUser: User;
@@ -10,7 +11,7 @@ interface HeaderProps {
   onToggleLandingPage: () => void;
   isLandingPage: boolean;
   onToggleSidebar: () => void;
-  onSwitchUserRole: () => void;
+  onSignOut: () => Promise<void>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleLandingPage,
   isLandingPage,
   onToggleSidebar,
-  onSwitchUserRole
+  onSignOut
 }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -38,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/research/suggestions?q=${encodeURIComponent(query.trim())}`);
+        const res = await apiFetch(`/api/research/suggestions?q=${encodeURIComponent(query.trim())}`);
         if (res.ok) {
           const data = await res.json();
           setSuggestions(data.suggestions?.slice(0, 7) || []);
@@ -227,20 +228,6 @@ export const Header: React.FC<HeaderProps> = ({
 
               <div className="py-1">
                 <button
-                  id="account-switch-role-btn"
-                  onClick={() => {
-                    onSwitchUserRole();
-                    setShowAccountMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between"
-                >
-                  <span>Switch Role Mode</span>
-                  <span className="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded">
-                    {currentUser.role === 'admin' ? 'User Mode' : 'Admin Mode'}
-                  </span>
-                </button>
-
-                <button
                   id="account-open-pricing-btn"
                   onClick={() => {
                     onOpenPricing();
@@ -256,14 +243,14 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="border-t border-slate-100 pt-1">
                 <button
                   id="account-sign-out-btn"
-                  onClick={() => {
-                    onOpenAuth();
+                  onClick={async () => {
+                    await onSignOut();
                     setShowAccountMenu(false);
                   }}
                   className="w-full text-left px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Switch Account / Sign In</span>
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>
