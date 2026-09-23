@@ -548,7 +548,22 @@ export default function App() {
                 }}
               />}
               {activeTab === 'history' && <HistoryView history={historyItems} onReRunSearch={handleSearch} />}
-              {activeTab === 'pricing' && <div className="space-y-6"><div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs"><div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1"><Coins className="w-4 h-4" /><span>Plans & Credits</span></div><h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Research Credits & Fair-Use Pricing</h2><p className="text-xs text-slate-500 mt-0.5">Active balance: <strong>{currentUser.credits} research credits</strong> on <strong>{currentUser.plan}</strong>.</p></div><button onClick={() => setIsPricingModalOpen(true)} className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center gap-2"><Coins className="w-4 h-4" /><span>Open Plans & Add Credits ($1 &ndash; $3)</span></button></div>}
+              {activeTab === 'pricing' && <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1">
+                    <Coins className="w-4 h-4" />
+                    <span>Plans & Credits</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Research Credits & Fair-Use Pricing</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Active balance: <strong>{currentUser.credits} research credits</strong> on <strong>{currentUser.plan}</strong>.</p>
+                </div>
+                <PricingModal
+                  isOpen={true}
+                  onClose={() => setActiveTab('dashboard')}
+                  currentUser={currentUser}
+                  onActivatePlan={handleActivatePlan}
+                />
+              </div>}
               {activeTab === 'account' && <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs max-w-xl mx-auto space-y-4"><h3 className="text-lg font-bold text-slate-900">Your Account Profile</h3><div className="space-y-2 text-xs"><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{currentUser.name}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Email</span><span className="font-semibold text-slate-900">{currentUser.email}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Active Plan</span><span className="font-semibold text-slate-900">{currentUser.plan}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Credits Remaining</span><span className="font-bold text-amber-700 text-sm">{currentUser.credits}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Role</span><span className="font-semibold text-indigo-700 uppercase">{currentUser.role}</span></div></div><div className="pt-4 flex items-center justify-end"><button onClick={handleSignOut} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold">Sign Out</button></div></div>}
               {activeTab === 'help' && <HelpView />}
               {activeTab === 'admin' && currentUser.role === 'admin' && <AdminPanelView currentUser={currentUser} />}
