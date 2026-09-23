@@ -171,3 +171,231 @@ apiRouter.post('/research/narrow-topic', async (req, res) => {
   if (!topic || !topic.trim()) {
     return res.status(400).json({ error: 'Topic is required.' });
   }
+
+  const narrowed = await geminiService.narrowTopic(topic);
+  res.json(narrowed);
+});
+
+// Core Full Research Engine
+apiRouter.post('/research/search', async (req, res) => {
+  const { topic } = req.body;
+  if (!topic || !topic.trim()) {
+    return res.status(400).json({ error: 'Research topic or keyword is required.' });
+  }
+
+  const cleanTopic = topic.trim();
+  const user = getUserFromReq(req);
+  const activeUserId = user.id;
+
+  // Credit check
+  if (user.role !== 'admin') {
+    const creditRes = await db.deductUserCredit(activeUserId, 1);
+    if (!creditRes.success) {
+      return res.status(402).json({
+        error: creditRes.message || 'Insufficient research credits.',
+        creditsRemaining: user.credits,
+        requiresUpgrade: true
+      });
+    }
+  }
+
+  let charged = false;
+
+  try {
+    // Keep Amazon enrichment bounded. Research must never fail just because
+    // the optional public autocomplete endpoint is slow or unavailable.
+    const realSuggestions = await amazonProvider.getSearchSuggestions(cleanTopic);
+
+    if (user.role !== 'admin') {
+      charged = true;
+    }
+
+    const report = await geminiService.generateFullResearch(cleanTopic, realSuggestions);
+
+    // Persistence is secondary to delivering the report. A history/log write
+    // failure must not turn a successfully generated report into a 500 error.
+    try {
+      await db.addHistory(activeUserId, cleanTopic, 'full_report');
+      await db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
+    } catch (persistenceError) {
+      console.error('Research persistence warning:', persistenceError);
+    }
+
+    const updatedUser = await db.getUserById(activeUserId);
+
+    res.json({
+      report,
+      creditsRemaining: updatedUser ? updatedUser.credits : 0,
+      realSuggestionsFound: realSuggestions.length
+    });
+  } catch (err: any) {
+    console.error('Research generation failure:', err);
+
+    // Do not leave the user permanently charged for a failed generation.
+    if (charged && user.role !== 'admin') {
+      try {
+        await db.addUserCredits(activeUserId, 1);
+      } catch (refundError) {
+        console.error('Failed to refund research credit:', refundError);
+      }
+    }
+
+    res.status(500).json({
+      error: 'Unable to generate the report right now. Please try again.',
+      detail: process.env.NODE_ENV === 'development' ? (err?.message || 'Unknown error') : undefined
+    });
+  }
+});
+
+// ===================== SAVED REPORTS & HISTORY =====================
+apiRouter.get('/reports/saved', async (req, res) => {
+  const user = getUserFromReq(req);
+  const reports = await db.getSavedReports(user.id);
+  res.json({ reports });
+});
+
+apiRouter.post('/reports/save', async (req, res) => {
+  const user = getUserFromReq(req);
+  const { topic, type, reportData, notes } = req.body;
+
+  if (!topic || !reportData) {
+    return res.status(400).json({ error: 'Topic and report data are required.' });
+  }
+
+  const saved = await db.saveReport(user.id, topic, type || 'full_report', reportData, notes);
+  res.json({ saved, message: 'Research saved to your private library.' });
+});
+
+apiRouter.post('/reports/toggle-favorite/:id', async (req, res) => {
+  const user = getUserFromReq(req);
+  const fav = await db.toggleFavoriteReport(req.params.id, user.id);
+  res.json({ favorite: fav });
+});
+
+apiRouter.delete('/reports/:id', async (req, res) => {
+  const user = getUserFromReq(req);
+  const deleted = await db.deleteSavedReport(req.params.id, user.id);
+  res.json({ success: deleted });
+});
+
+apiRouter.get('/history', async (req, res) => {
+  const user = getUserFromReq(req);
+  const history = await db.getHistory(user.id);
+  res.json({ history });
+});
+
+// ===================== BILLING & PLANS =====================
+apiRouter.get('/billing/plans', async (req, res) => {
+  const plans = await db.getPlans();
+  res.json({ plans });
+});
+
+apiRouter.post('/billing/checkout', async (req, res) => {
+  const user = getUserFromReq(req);
+  const { planId } = req.body;
+
+  try {
+    const checkout = await billingService.createCheckoutSession(user.id, planId);
+    res.json(checkout);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/billing/activate', async (req, res) => {
+  const user = getUserFromReq(req);
+  const { planId } = req.body;
+
+  try {
+    const result = billingService.applyPlanToUser(user.id, planId);
+    const updatedUser = await db.getUserById(user.id);
+    res.json({ ...result, user: updatedUser, message: 'Research credits added successfully!' });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ===================== ADMIN ROUTES =====================
+apiRouter.get('/admin/stats', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const stats = await db.getAdminStats();
+  res.json({ stats });
+});
+
+apiRouter.get('/admin/users', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const users = await db.getUsers();
+  res.json({ users });
+});
+
+apiRouter.post('/admin/users/:id/credits', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const targetUserId = req.params.id;
+  const { credits, plan } = req.body;
+
+  const updated = await db.updateUser(targetUserId, {
+    ...(credits !== undefined ? { credits: Number(credits) } : {}),
+    ...(plan ? { plan } : {})
+  });
+
+  res.json({ user: updated });
+});
+
+apiRouter.post('/admin/plans/:id', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const updated = await db.updatePlan(req.params.id, req.body);
+  res.json({ plan: updated });
+});
+
+apiRouter.get('/admin/usage', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const logs = await db.getUsageLogs();
+  res.json({ logs });
+});
+
+apiRouter.get('/admin/settings', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const settings = await db.getSettings();
+  const aiStatus = geminiService.getAiStatus();
+  const enrichedSettings = {
+    ...settings,
+    geminiConfigured: aiStatus.geminiAvailable,
+    groqConfigured: aiStatus.groqAvailable,
+    activeAiProviders: aiStatus.activeProviders,
+    rollupStrategy: aiStatus.strategy,
+    geminiEnabled: settings.geminiEnabled !== false,
+    groqEnabled: aiStatus.groqAvailable
+  };
+  res.json({ settings: enrichedSettings });
+});
+
+apiRouter.get('/ai/status', async (req, res) => {
+  res.json({ ai: geminiService.getAiStatus() });
+});
+
+apiRouter.post('/admin/settings', async (req, res) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  const updated = await db.updateSettings(req.body);
+  res.json({ settings: updated });
+});
