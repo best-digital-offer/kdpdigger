@@ -13,8 +13,12 @@ apiRouter.use(express.urlencoded({ extended: true }));
 // Supabase Auth is the only source of identity.
 // The browser must send: Authorization: Bearer <Supabase access token>
 const supabaseAuth = createClient(
-  process.env.SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder',
+  process.env.SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    'https://placeholder.supabase.co',
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    'sb_publishable_placeholder',
   {
     auth: {
       autoRefreshToken: false,
