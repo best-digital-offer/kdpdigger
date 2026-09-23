@@ -5,7 +5,8 @@ import { supabase, getAppUrl } from '../lib/supabase.ts';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthenticated: () => Promise<void>;
+  onAuthenticated?: () => Promise<void>;
+  passwordRecovery?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
@@ -21,7 +22,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: getAppUrl() }
+        options: {
+          redirectTo: getAppUrl(),
+          queryParams: {
+            prompt: 'select_account'
+          }
+        }
       });
 
       if (error) throw error;
