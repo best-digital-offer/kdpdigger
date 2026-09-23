@@ -174,9 +174,9 @@ export class AmazonDataProvider {
       }
 
       const html = await response.text();
-      const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\\s\\S]*?)<\/span>/i);
-      const authorMatch = html.match(/<span[^>]+class=["'][^"']*author[^"']*["'][^>]*>[\\s\\S]*?<a[^>]*>([\\s\\S]*?)<\\/a>/i);
-      const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\\s\\S]*?([\\$£€₹][0-9][^<]*)<\/span>/i);
+      const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\s\S]*?)<\/span>/i);
+      const authorMatch = html.match(/<span[^>]+class=["'][^"']*author[^"']*["'][^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i);
+      const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\s\S]*?([\$£€₹][0-9][^<]*)<\/span>/i);
       const pagesMatch = html.match(/([0-9]{2,5})\s+pages/i);
       const dateMatch = html.match(/Publication date[^<]{0,100}<[^>]*>([^<]+)/i);
 
