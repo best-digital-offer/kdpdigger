@@ -326,7 +326,7 @@ export default function App() {
   const handleActivatePlan = async (planId: string) => {
     const res = await apiFetch('/api/billing/activate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ planId })
     });
     const data = await res.json();
