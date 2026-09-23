@@ -142,30 +142,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 overflow-y-auto">
-      <div className="min-h-full p-2 sm:p-4 flex items-center justify-center">
-        <div className="relative w-full max-w-4xl min-h-[560px] overflow-hidden rounded-2xl bg-white shadow-2xl border border-white/60 flex flex-col lg:flex-row">
+      <div className="min-h-full p-2 sm:p-3 flex items-center justify-center">
+        <div className="relative w-full max-w-4xl min-h-0 max-h-[92vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-white/60 flex flex-col lg:flex-row">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 z-20 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-slate-500 hover:text-slate-900 flex items-center justify-center shadow-sm border border-slate-200"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
 
           {/* Marketing panel */}
           <div className="relative lg:w-1/2 min-h-[300px] lg:min-h-full overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-100 to-amber-400" />
             <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/90 via-orange-500/20 to-transparent" />
-            <div className="relative z-10 p-5 sm:p-7 lg:p-8 h-full flex flex-col">
+            <div className="relative z-10 p-5 sm:p-6 lg:p-7 h-full flex flex-col">
               <div className="max-w-lg">
-                <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-950 leading-[1.02]">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-950 leading-[1.02]">
                   Find Your<br />Next KDP<br />Opportunity
                 </h1>
-                <p className="mt-5 text-base sm:text-lg text-slate-700 leading-relaxed max-w-md">
+                <p className="mt-3 text-sm sm:text-base text-slate-700 leading-relaxed max-w-md">
                   AI-powered research tools to help you discover profitable low-competition niches on Amazon KDP.
                 </p>
 
-                <div className="mt-8 space-y-5">
+                <div className="mt-6 space-y-3">
                   {[
                     { icon: Search, title: 'Niche Research', text: 'Find profitable, low-competition niches', cls: 'bg-amber-100 text-amber-700' },
                     { icon: BarChart3, title: 'Keyword Research', text: 'Discover high-ranking keywords', cls: 'bg-blue-100 text-blue-700' },
@@ -173,8 +173,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     { icon: Lightbulb, title: 'AI-Powered Insights', text: 'Get actionable recommendations', cls: 'bg-rose-100 text-rose-700' }
                   ].map(({ icon: Icon, title, text, cls }) => (
                     <div key={title} className="flex items-center gap-4">
-                      <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white/80 ${cls}`}>
-                        <Icon className="w-5 h-5" />
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white/80 ${cls}`}>
+                        <Icon className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="font-extrabold text-slate-900 text-sm sm:text-base">{title}</div>
@@ -185,11 +185,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              <div className="mt-auto pt-10 text-white">
-                <div className="text-2xl sm:text-3xl font-black leading-tight max-w-md">
+              <div className="mt-auto pt-6 text-white">
+                <div className="text-xl sm:text-2xl font-black leading-tight max-w-md">
                   “Opportunities don't happen.<br />You find them.”
                 </div>
-                <div className="mt-5 flex items-center gap-3">
+                <div className="mt-3 flex items-center gap-3">
                   <span className="w-9 h-1 bg-amber-400 rounded-full" />
                   <span className="text-xs tracking-[0.3em] font-semibold">KDP DIGGER</span>
                 </div>
@@ -198,12 +198,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Authentication panel */}
-          <div className="lg:w-1/2 bg-white flex items-center justify-center p-7 sm:p-10 lg:p-12">
+          <div className="lg:w-1/2 bg-white flex items-center justify-center p-5 sm:p-7 lg:p-8 overflow-y-auto">
             <div className="w-full max-w-md">
               <div className="text-center">
-                <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover mx-auto shadow-lg" />
-                <h2 className="mt-4 text-2xl sm:text-3xl font-black text-slate-950">Sign {mode === 'signin' ? 'in' : 'up'} to KDP Digger</h2>
-                <p className="mt-2 text-sm sm:text-base text-slate-500">Access your account and continue your research journey</p>
+                <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover mx-auto shadow-lg" />
+                <h2 className="mt-4 text-xl sm:text-2xl font-black text-slate-950">Sign {mode === 'signin' ? 'in' : 'up'} to KDP Digger</h2>
+                <p className="mt-1 text-xs sm:text-sm text-slate-500">Access your account and continue your research journey</p>
               </div>
 
               {forgotMode ? (
@@ -212,12 +212,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <label className="block text-sm font-bold text-slate-800 mb-2">Email address</label>
                     <div className="relative">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="Enter your email" className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+                      <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="Enter your email" className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
                     </div>
                   </div>
                   {error && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">{error}</div>}
                   {message && <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">{message}</div>}
-                  <button disabled={loading} className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold">{loading ? 'Sending...' : 'Send reset link'}</button>
+                  <button disabled={loading} className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold">{loading ? 'Sending...' : 'Send reset link'}</button>
                   <button type="button" onClick={() => { clearFeedback(); setForgotMode(false); }} className="w-full text-sm font-semibold text-blue-600 hover:text-blue-700">Back to sign in</button>
                 </form>
               ) : (
@@ -225,30 +225,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <button
                     onClick={handleGoogle}
                     disabled={loading}
-                    className="mt-7 w-full py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:bg-slate-50 text-slate-900 font-bold text-sm flex items-center justify-center gap-3 shadow-sm"
+                    className="mt-5 w-full py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:bg-slate-50 text-slate-900 font-bold text-sm flex items-center justify-center gap-3 shadow-sm"
                   >
                     <GoogleLogo />
                     {loading ? 'Connecting to Google...' : 'Continue with Google'}
                   </button>
 
-                  <div className="flex items-center gap-4 my-6">
+                  <div className="flex items-center gap-4 my-4">
                     <div className="h-px flex-1 bg-slate-200" />
                     <span className="text-xs font-semibold text-slate-400">OR</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
-                  <form onSubmit={handleEmailAuth} className="space-y-4">
+                  <form onSubmit={handleEmailAuth} className="space-y-3">
                     {mode === 'signup' && (
                       <div>
                         <label className="block text-sm font-bold text-slate-800 mb-2">Full name</label>
-                        <input value={name} onChange={e => setName(e.target.value)} type="text" autoComplete="name" placeholder="Enter your name" className="w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+                        <input value={name} onChange={e => setName(e.target.value)} type="text" autoComplete="name" placeholder="Enter your name" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
                       </div>
                     )}
                     <div>
                       <label className="block text-sm font-bold text-slate-800 mb-2">Email address</label>
                       <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="Enter your email" className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="Enter your email" className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
                       </div>
                     </div>
                     <div>
@@ -258,9 +258,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       </div>
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Enter your password" className="w-full pl-12 pr-12 py-3.5 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+                        <input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Enter your password" className="w-full pl-12 pr-12 py-3 rounded-xl border border-slate-200 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
                         <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700" aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -268,12 +268,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     {error && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">{error}</div>}
                     {message && <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">{message}</div>}
 
-                    <button type="submit" disabled={loading} className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm shadow-sm">
+                    <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm shadow-sm">
                       {loading ? (mode === 'signup' ? 'Creating account...' : 'Signing in...') : (mode === 'signup' ? 'Sign up' : 'Sign in')}
                     </button>
                   </form>
 
-                  <div className="text-center mt-6 text-sm text-slate-500">
+                  <div className="text-center mt-4 text-sm text-slate-500">
                     {mode === 'signin' ? (
                       <>Don't have an account? <button onClick={() => switchMode('signup')} className="font-bold text-blue-600 hover:text-blue-700">Sign up</button></>
                     ) : (
@@ -283,9 +283,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </>
               )}
 
-              <div className="mt-8 p-4 rounded-xl bg-slate-50 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
+              <div className="mt-5 p-3 rounded-xl bg-slate-50 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="font-bold text-sm text-slate-900">Secure & Protected</div>
