@@ -18,9 +18,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleGoogle = async () => {
     setError(null);
     setLoading(true);
-    window.sessionStorage.setItem('kdp_oauth_pending', '1');
 
     try {
+      // Clear any previous local Supabase session before starting Google OAuth.
+      // Without this, switching Google accounts in the same browser can restore
+      // the previous KDP Digger session instead of the account just selected.
+      await supabase.auth.signOut({ scope: 'local' });
+      window.sessionStorage.removeItem('kdp_oauth_pending');
+      window.sessionStorage.setItem('kdp_oauth_pending', '1');
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -42,11 +48,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 relative">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-slate-700 p-1"
-          aria-label="Close"
-        >
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-700 p-1" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
 
@@ -55,15 +57,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <Sparkles className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-black text-slate-900">Sign in to KDP Digger</h3>
-          <p className="text-xs text-amber-800 font-semibold mt-1">
-            Dig Deeper. Find Better KDP Opportunities.
-          </p>
+          <p className="text-xs text-amber-800 font-semibold mt-1">Dig Deeper. Find Better KDP Opportunities.</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
-            {error}
-          </div>
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">{error}</div>
         )}
 
         <button
