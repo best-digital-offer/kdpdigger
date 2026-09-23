@@ -104,15 +104,16 @@ export default function App() {
     }
   ]);
 
-  // Supabase Auth session lifecycle
+  // Supabase Auth session lifecycle.
+  // Do not await Supabase auth methods from inside onAuthStateChange.
+  // Doing so can race the auth lock during an OAuth redirect.
   useEffect(() => {
     let mounted = true;
 
-    const loadCurrentUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    const applySession = async (session: any | null) => {
       if (!mounted) return;
 
-      if (!session) {
+      if (!session?.access_token) {
         setCurrentUser(GUEST_USER);
         setIsAuthenticated(false);
         setAuthLoading(false);
@@ -120,16 +121,30 @@ export default function App() {
       }
 
       try {
-        const res = await apiFetch('/api/auth/me');
+        // Use the token from the auth event directly instead of calling
+        // getSession() again while Supabase is processing that event.
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         const data = await res.json();
-        if (!res.ok || !data.user) throw new Error(data.error || 'Unable to load account');
+
+        if (!res.ok || !data.user) {
+          throw new Error(data.error || 'Unable to load account');
+        }
+
         if (mounted) {
           setCurrentUser(data.user);
           setIsAuthenticated(true);
+          setIsAuthModalOpen(false);
+          setPasswordRecovery(false);
+          setIsLandingPage(false);
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to load authenticated KDP Digger user:', error);
         if (mounted) {
-          await supabase.auth.signOut();
           setCurrentUser(GUEST_USER);
           setIsAuthenticated(false);
         }
@@ -138,23 +153,47 @@ export default function App() {
       }
     };
 
-    loadCurrentUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+    // Subscribe before reading the current session so an OAuth redirect
+    // event cannot be missed during initial app startup.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+
       if (event === 'SIGNED_OUT') {
         setCurrentUser(GUEST_USER);
         setIsAuthenticated(false);
         setPasswordRecovery(false);
+        setAuthLoading(false);
         return;
       }
+
       if (event === 'PASSWORD_RECOVERY') {
         setPasswordRecovery(true);
         setIsAuthModalOpen(true);
+        setAuthLoading(false);
         return;
       }
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        await loadCurrentUser();
+
+      if (
+        event === 'INITIAL_SESSION' ||
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        event === 'USER_UPDATED'
+      ) {
+        // Run outside the Supabase auth callback.
+        window.setTimeout(() => {
+          void applySession(session);
+        }, 0);
+      }
+    });
+
+    // Fallback for a session already restored before the listener ran.
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session) {
+        void applySession(session);
+      } else if (mounted) {
+        setCurrentUser(GUEST_USER);
+        setIsAuthenticated(false);
+        setAuthLoading(false);
       }
     });
 
