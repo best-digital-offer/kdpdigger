@@ -1,0 +1,6 @@
+{
+  "name": "KDP Digger",
+  "description": "Dig Deeper. Find Better KDP Opportunities. Amazon KDP research and market validation platform to discover keyword opportunities, niches, competitor positioning, and market gaps before you publish.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
