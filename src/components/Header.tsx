@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Sparkles, User as UserIcon, Menu, ExternalLink, ShieldCheck, ChevronDown, Coins, LogOut } from 'lucide-react';
+import { Search, Sparkles, Menu, ShieldCheck, ChevronDown, Coins, LogOut } from 'lucide-react';
 import { User } from '../types';
 import { apiFetch } from '../lib/supabase.ts';
 
@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header id="app-top-header" className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+    <header id="app-top-header" className="sticky top-0 z-30 lg:ml-64 bg-white/95 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <button
           id="mobile-menu-toggle-btn"
@@ -164,25 +164,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Action Menu */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Toggle Landing / App View */}
-        <button
-          id="toggle-landing-app-btn"
-          onClick={onToggleLandingPage}
-          className="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors hidden sm:flex items-center gap-1.5"
-        >
-          {isLandingPage ? (
-            <>
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Open Dashboard</span>
-            </>
-          ) : (
-            <>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-              <span>Public Landing Page</span>
-            </>
-          )}
-        </button>
-
         {/* Credits Badge */}
         <button
           id="credits-top-badge"
