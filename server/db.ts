@@ -74,15 +74,34 @@ export class Database {
   }
 
   async deductUserCredit(userId:string,amount=1) {
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new Error('Invalid credit amount.');
+    }
+
     try {
-      const {data,error}=await supabase.rpc('deduct_credit',{p_user_id:userId,p_amount:amount});
-      if(error) {
-        if(error.message.includes('Insufficient')) return {success:false,creditsRemaining:(await this.getUserById(userId))?.credits || 0,message:'Insufficient research credits. Please top up or upgrade plan.'};
+      const { data, error } = await supabase.rpc('deduct_credit_service', {
+        p_user_id: userId,
+        p_amount: amount
+      });
+
+      if (error) {
+        if (error.message.includes('Insufficient')) {
+          return {
+            success: false,
+            creditsRemaining: (await this.getUserById(userId))?.credits || 0,
+            message: 'Insufficient research credits. Please top up or upgrade plan.'
+          };
+        }
         throw error;
       }
-      const user=await this.getUserById(userId);
-      return {success:true,creditsRemaining:user?.role==='admin'?999:Number(data),message:undefined};
-    } catch(error:any) {
+
+      const user = await this.getUserById(userId);
+      return {
+        success: true,
+        creditsRemaining: user?.role === 'admin' ? 999 : Number(data),
+        message: undefined
+      };
+    } catch (error:any) {
       console.error('Credit deduction failed:', error);
       throw new Error(error?.message || 'Unable to update credits.');
     }
