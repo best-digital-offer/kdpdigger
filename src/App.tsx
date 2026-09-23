@@ -245,15 +245,18 @@ export default function App() {
     setIsLoading(true);
     setIsLandingPage(false);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 55000);
+
     try {
       const res = await apiFetch('/api/research/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: cleanTopic })
+        body: JSON.stringify({ topic: cleanTopic }),
+        signal: controller.signal
       });
 
       if (res.status === 402) {
-        setIsLoading(false);
         setIsPricingModalOpen(true);
         showToast('You have used all research credits. Top up for $1-$3 to continue.');
         return;
@@ -265,7 +268,6 @@ export default function App() {
         if (data.creditsRemaining !== undefined) {
           setCurrentUser(prev => ({ ...prev, credits: data.creditsRemaining }));
         }
-        // Update history
         setHistoryItems(prev => [
           {
             id: `hist_${Date.now()}`,
@@ -279,12 +281,17 @@ export default function App() {
         ]);
         showToast(`Research completed for "${cleanTopic}"!`);
       } else {
-        throw new Error(data.error || 'Research failed');
+        throw new Error(data.error || `Research failed (HTTP ${res.status})`);
       }
     } catch (err: any) {
-      console.warn('API error, using synthesized fallback:', err);
-      showToast('Researching topic with analytical synthesis...');
+      console.error('Research request failed:', err);
+      if (err?.name === 'AbortError') {
+        showToast('Research timed out. Please try again; your credit was not charged if generation did not start.');
+      } else {
+        showToast(err?.message || 'Research failed. Please try again.');
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
