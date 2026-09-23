@@ -9,14 +9,12 @@ interface AuthModalProps {
   passwordRecovery?: boolean;
 }
 
-type Mode = 'signin' | 'signup' | 'magic' | 'otp' | 'forgot' | 'reset';
+type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthenticated, passwordRecovery = false }) => {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,70 +66,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    resetFeedback();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: getAppUrl(),
-          shouldCreateUser: true
-        }
-      });
-      if (error) throw error;
-      setMsg('Magic link sent. Check your email and open the link on this device.');
-    } catch (err: any) {
-      setError(err?.message || 'Unable to send magic link.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOtpRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    resetFeedback();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          shouldCreateUser: true
-        }
-      });
-      if (error) throw error;
-      setOtpSent(true);
-      setMsg('A 6-digit sign-in code was sent to your email. Keep this window open and enter the code here.');
-    } catch (err: any) {
-      setError(err?.message || 'Unable to send OTP.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    resetFeedback();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: otp.trim(),
-        type: 'email'
-      });
-      if (error) throw error;
-      await completeAuth();
-    } catch (err: any) {
-      setError(err?.message || 'Invalid or expired verification code.');
     } finally {
       setLoading(false);
     }
@@ -190,8 +124,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
 
   const title =
     mode === 'signup' ? 'Create your KDP Digger account' :
-    mode === 'magic' ? 'Sign in with Magic Link' :
-    mode === 'otp' ? 'Sign in with Email OTP' :
     mode === 'forgot' ? 'Reset your password' :
     mode === 'reset' ? 'Choose a new password' :
     'Sign in to KDP Digger';
@@ -269,48 +201,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
               </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button onClick={() => { resetFeedback(); setMode('magic'); }} className="py-2 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
-                Magic Link
-              </button>
-              <button onClick={() => { resetFeedback(); setMode('otp'); }} className="py-2 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
-                Email OTP
-              </button>
-            </div>
           </>
-        ) : mode === 'magic' ? (
-          <form onSubmit={handleMagicLink} className="space-y-4">
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="author@example.com"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
-            <button disabled={loading} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
-              {loading ? 'Sending...' : 'Send Magic Link'}
-            </button>
-            <button type="button" onClick={() => setMode('signin')} className="w-full text-xs text-slate-500">Back to sign in</button>
-          </form>
-        ) : mode === 'otp' ? (
-          <div className="space-y-3">
-            <form onSubmit={handleOtpRequest} className="space-y-3">
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="author@example.com"
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
-              <button disabled={loading} className="w-full py-2.5 bg-slate-900 text-white font-black text-xs rounded-xl">
-                {loading ? 'Sending...' : 'Send OTP Code'}
-              </button>
-            </form>
-            {otpSent && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-800">
-                Check your email for the 6-digit code. This page will remain open while you retrieve it on another device.
-              </div>
-            )}
-            <form onSubmit={verifyOtp} className="space-y-3">
-              <input inputMode="numeric" maxLength={6} value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                placeholder="6-digit code" aria-label="6-digit email verification code"
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
-              <button disabled={loading || otp.length < 6} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
-                Verify OTP
-              </button>
-            </form>
-            <button onClick={() => setMode('signin')} className="w-full text-xs text-slate-500">Back to sign in</button>
-          </div>
         ) : mode === 'reset' ? (
           <form onSubmit={handlePasswordRecovery} className="space-y-4">
             <div>
