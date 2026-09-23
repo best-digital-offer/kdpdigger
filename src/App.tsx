@@ -113,43 +113,60 @@ export default function App() {
     const applySession = async (session: any | null) => {
       if (!mounted) return;
 
+      // A null session can be observed briefly while Supabase is still
+      // processing the OAuth redirect. Do not open the login modal here.
       if (!session?.access_token) {
-        setCurrentUser(GUEST_USER);
-        setIsAuthenticated(false);
-        setAuthLoading(false);
         return;
       }
 
       try {
-        // Use the token from the auth event directly instead of calling
-        // getSession() again while Supabase is processing that event.
-        const res = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const data = await res.json();
+        // The OAuth session can be available a moment before the API is
+        // ready to create/load the corresponding KDP Digger account.
+        // Retry briefly instead of treating that transient state as logout.
+        let lastError: Error | null = null;
 
-        if (!res.ok || !data.user) {
-          throw new Error(data.error || 'Unable to load account');
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (!mounted) return;
+
+          try {
+            const res = await fetch('/api/auth/me', {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            const data = await res.json();
+
+            if (res.ok && data.user) {
+              if (mounted) {
+                setCurrentUser(data.user);
+                setIsAuthenticated(true);
+                setIsAuthModalOpen(false);
+                setPasswordRecovery(false);
+                setIsLandingPage(false);
+                setAuthLoading(false);
+              }
+              return;
+            }
+
+            lastError = new Error(data.error || `Unable to load account (HTTP ${res.status})`);
+          } catch (error) {
+            lastError = error instanceof Error ? error : new Error('Unable to load account');
+          }
+
+          await new Promise(resolve => window.setTimeout(resolve, 500 * (attempt + 1)));
         }
 
-        if (mounted) {
-          setCurrentUser(data.user);
-          setIsAuthenticated(true);
-          setIsAuthModalOpen(false);
-          setPasswordRecovery(false);
-          setIsLandingPage(false);
-        }
+        throw lastError || new Error('Unable to load account');
       } catch (error) {
         console.error('Failed to load authenticated KDP Digger user:', error);
+        // Keep the user signed out only after a real authenticated session
+        // failed to load, rather than during the initial OAuth URL transition.
         if (mounted) {
           setCurrentUser(GUEST_USER);
           setIsAuthenticated(false);
+          setAuthLoading(false);
         }
-      } finally {
-        if (mounted) setAuthLoading(false);
       }
     };
 
@@ -186,14 +203,12 @@ export default function App() {
       }
     });
 
-    // Fallback for a session already restored before the listener ran.
+    // Check for a session already restored before the listener ran.
+    // If Supabase is still processing an OAuth redirect, INITIAL_SESSION will
+    // deliver the result through the listener above.
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted && session) {
         void applySession(session);
-      } else if (mounted) {
-        setCurrentUser(GUEST_USER);
-        setIsAuthenticated(false);
-        setAuthLoading(false);
       }
     });
 
