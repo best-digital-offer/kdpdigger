@@ -187,7 +187,26 @@ export default function App() {
       }
     });
 
-    void supabase.auth.getSession().then(({ data: { session } }) => {
+    const finishOAuthCallback = async () => {
+      if (window.location.pathname !== '/auth/callback') return;
+      const code = new URLSearchParams(window.location.search).get('code');
+      if (!code) return;
+
+      try {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
+        window.history.replaceState({}, document.title, '/');
+        window.sessionStorage.removeItem('kdp_oauth_pending');
+      } catch (error) {
+        console.error('OAuth callback exchange failed:', error);
+        window.sessionStorage.removeItem('kdp_oauth_pending');
+        setAuthError(error instanceof Error ? error.message : 'Google sign-in callback failed.');
+        setAuthLoading(false);
+        setAllowAutoAuthModal(true);
+      }
+    };
+
+    void finishOAuthCallback().then(() => supabase.auth.getSession()).then(({ data: { session } }) => {
       if (!mounted) return;
       if (session?.access_token) {
         void loadUserFromSession(session);
