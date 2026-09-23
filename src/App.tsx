@@ -410,10 +410,23 @@ export default function App() {
 
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(GUEST_USER);
-    setIsAuthenticated(false);
-    setActiveTab('dashboard');
+    try {
+      // Sign out only this browser session. A global sign-out can revoke
+      // refresh tokens in other browsers/devices and leave them in a stale
+      // authenticated state until their token expires.
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    } catch (error) {
+      console.error('KDP Digger sign-out failed:', error);
+    } finally {
+      // Always reset the local React state so the current browser immediately
+      // returns to the sign-in screen even if the network request fails.
+      setCurrentUser(GUEST_USER);
+      setIsAuthenticated(false);
+      setPasswordRecovery(false);
+      setIsAuthModalOpen(true);
+      setActiveTab('dashboard');
+    }
   };
 
   if (authLoading) {
