@@ -78,6 +78,58 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   }
 };
 
+
+// ===================== PUBLIC AUTH SIGNUP =====================
+// Email/password signup is handled server-side so newly created accounts are
+// immediately confirmed. This avoids blocking users on Supabase's email SMTP
+// configuration while Google OAuth continues to use Supabase Auth normally.
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-role-key',
+  { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }
+);
+
+apiRouter.post('/auth/signup', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const name = String(req.body?.name || '').trim();
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+  if (password.length > 72) {
+    return res.status(400).json({ error: 'Password must be 72 characters or fewer.' });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: name || email.split('@')[0] }
+    });
+
+    if (error) {
+      if (/already registered|already exists|duplicate/i.test(error.message || '')) {
+        return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
+      }
+      throw error;
+    }
+
+    res.status(201).json({
+      success: true,
+      user: data.user ? { id: data.user.id, email: data.user.email } : null,
+      message: 'Account created successfully. You can now sign in.'
+    });
+  } catch (error: any) {
+    console.error('Email signup failed:', error);
+    res.status(500).json({ error: error?.message || 'Unable to create your account right now.' });
+  }
+});
+
 apiRouter.use(requireAuth);
 
 const getUserFromReq = (req: express.Request) => {

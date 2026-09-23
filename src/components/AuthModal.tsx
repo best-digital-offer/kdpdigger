@@ -82,21 +82,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-          options: {
-            data: { full_name: name.trim() || cleanEmail.split('@')[0] },
-            emailRedirectTo: getAppUrl()
-          }
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+            name: name.trim() || cleanEmail.split('@')[0]
+          })
         });
-        if (error) throw error;
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to create your account.');
 
-        if (data.session) {
-          setMessage('Account created successfully. Signing you in...');
-        } else {
-          setMessage('Account created. Please check your email to confirm your account, then sign in.');
-        }
+        // The server creates the Supabase Auth user with email_confirm=true.
+        // Sign in immediately so the normal session/profile loading flow takes over.
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password
+        });
+        if (signInError) throw signInError;
+        setMessage('Account created successfully. Signing you in...');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -138,7 +143,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="min-h-full p-2 sm:p-4 flex items-center justify-center">
-        <div className="relative w-full max-w-6xl min-h-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl border border-white/60 flex flex-col lg:flex-row">
+        <div className="relative w-full max-w-4xl min-h-[560px] overflow-hidden rounded-2xl bg-white shadow-2xl border border-white/60 flex flex-col lg:flex-row">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 z-20 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-slate-500 hover:text-slate-900 flex items-center justify-center shadow-sm border border-slate-200"
@@ -148,12 +153,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </button>
 
           {/* Marketing panel */}
-          <div className="relative lg:w-1/2 min-h-[360px] lg:min-h-full overflow-hidden">
+          <div className="relative lg:w-1/2 min-h-[300px] lg:min-h-full overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-100 to-amber-400" />
             <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/90 via-orange-500/20 to-transparent" />
-            <div className="relative z-10 p-7 sm:p-10 lg:p-12 h-full flex flex-col">
+            <div className="relative z-10 p-5 sm:p-7 lg:p-8 h-full flex flex-col">
               <div className="max-w-lg">
-                <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-950 leading-[1.02]">
+                <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-950 leading-[1.02]">
                   Find Your<br />Next KDP<br />Opportunity
                 </h1>
                 <p className="mt-5 text-base sm:text-lg text-slate-700 leading-relaxed max-w-md">
@@ -196,8 +201,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <div className="lg:w-1/2 bg-white flex items-center justify-center p-7 sm:p-10 lg:p-12">
             <div className="w-full max-w-md">
               <div className="text-center">
-                <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover mx-auto shadow-lg" />
-                <h2 className="mt-5 text-3xl font-black text-slate-950">Sign {mode === 'signin' ? 'in' : 'up'} to KDP Digger</h2>
+                <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover mx-auto shadow-lg" />
+                <h2 className="mt-4 text-2xl sm:text-3xl font-black text-slate-950">Sign {mode === 'signin' ? 'in' : 'up'} to KDP Digger</h2>
                 <p className="mt-2 text-sm sm:text-base text-slate-500">Access your account and continue your research journey</p>
               </div>
 
