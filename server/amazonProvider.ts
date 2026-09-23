@@ -174,10 +174,10 @@ export class AmazonDataProvider {
       }
 
       const html = await response.text();
-      const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\\s\\S]*?)<\\/span>/i);
+      const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\\s\\S]*?)<\/span>/i);
       const authorMatch = html.match(/<span[^>]+class=["'][^"']*author[^"']*["'][^>]*>[\\s\\S]*?<a[^>]*>([\\s\\S]*?)<\\/a>/i);
-      const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\\s\\S]*?([\\$£€₹][0-9][^<]*)<\\/span>/i);
-      const pagesMatch = html.match(/([0-9]{2,5})\\s+pages/i);
+      const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\\s\\S]*?([\\$£€₹][0-9][^<]*)<\/span>/i);
+      const pagesMatch = html.match(/([0-9]{2,5})\s+pages/i);
       const dateMatch = html.match(/Publication date[^<]{0,100}<[^>]*>([^<]+)/i);
 
       const stripHtml = (value?: string) => value
@@ -186,13 +186,13 @@ export class AmazonDataProvider {
         .replace(/&amp;/gi, '&')
         .replace(/&#39;/g, "'")
         .replace(/&quot;/g, '"')
-        .replace(/\\s+/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
 
       const title = stripHtml(titleMatch?.[1]);
       const author = stripHtml(authorMatch?.[1]);
       const price = stripHtml(priceMatch?.[1]);
-      const pages = pagesMatch ? Number(pagesMatch[2]) : undefined;
+      const pages = pagesMatch ? Number(pagesMatch[1]) : undefined;
       const publicationDate = stripHtml(dateMatch?.[1]);
 
       if (!title) {
