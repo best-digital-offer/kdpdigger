@@ -17,12 +17,15 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      flowType: 'pkce'
     },
   }
 );
 
-export const getAppUrl = () =>
-  window.location.origin.endsWith('/') ? window.location.origin : window.location.origin + '/';
+export const getAppUrl = () => {
+  const origin = window.location.origin;
+  return origin.endsWith('/') ? origin : origin + '/';
+};
 
 export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
