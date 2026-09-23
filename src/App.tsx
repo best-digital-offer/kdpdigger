@@ -115,6 +115,19 @@ export default function App() {
           const data = await res.json();
 
           if (res.ok && data.user) {
+            // Never allow the application profile to differ from the Supabase
+            // Auth identity that produced the bearer token. This protects
+            // against stale OAuth sessions being displayed after account switch.
+            const sessionEmail = String(session.user?.email || '').trim().toLowerCase();
+            const profileEmail = String(data.user.email || '').trim().toLowerCase();
+            if (sessionEmail && profileEmail && sessionEmail !== profileEmail) {
+              await supabase.auth.signOut({ scope: 'local' });
+              window.sessionStorage.removeItem('kdp_oauth_pending');
+              throw new Error(
+                `Authentication identity mismatch. Google signed in as ${sessionEmail}, but KDP Digger loaded ${profileEmail}. Please sign in again.`
+              );
+            }
+
             setCurrentUser(data.user);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
