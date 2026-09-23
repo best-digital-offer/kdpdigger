@@ -29,14 +29,30 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
     setTimeout(() => setCopiedGroup(null), 2000);
   };
 
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+
   const filterKeywords = (list: KeywordItem[]) => {
-    if (!filterQuery.trim()) return list;
-    return list.filter(k => k.keyword.toLowerCase().includes(filterQuery.toLowerCase()));
+    if (!normalizedFilter) return list;
+    return list.filter(k => k.keyword.toLowerCase().includes(normalizedFilter));
   };
 
   const highFiltered = filterKeywords(keywords.highRelevance);
   const longTailFiltered = filterKeywords(keywords.longTail);
   const audienceFiltered = filterKeywords(keywords.audienceSpecific);
+
+  // Keep the global filter consistent across the entire keyword view,
+  // including thematic clusters.
+  const filteredClusters = !normalizedFilter
+    ? keywords.clusters
+    : keywords.clusters
+        .map(cluster => ({
+          ...cluster,
+          keywords: cluster.keywords.filter(kw => kw.toLowerCase().includes(normalizedFilter))
+        }))
+        .filter(cluster =>
+          cluster.theme.toLowerCase().includes(normalizedFilter) ||
+          cluster.keywords.length > 0
+        );
 
   const renderKeywordRow = (item: KeywordItem) => (
     <div
@@ -157,7 +173,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
       </div>
 
       {/* Thematic Keyword Clusters View */}
-      {(activeTab === 'all' || activeTab === 'clusters') && keywords.clusters.length > 0 && (
+      {(activeTab === 'all' || activeTab === 'clusters') && filteredClusters.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
@@ -168,7 +184,7 @@ export const KeywordResearchView: React.FC<KeywordResearchViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {keywords.clusters.map((cluster, idx) => (
+            {filteredClusters.map((cluster, idx) => (
               <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
                 <div className="flex items-center justify-between mb-1.5">
                   <h4 className="font-bold text-slate-900 text-sm">{cluster.theme}</h4>
