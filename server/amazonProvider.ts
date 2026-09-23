@@ -105,7 +105,7 @@ export class AmazonDataProvider {
 
     try {
       const parsed = new URL(trimmed);
-      const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
       const allowedHosts = new Set([
         'amazon.com', 'amazon.in', 'amazon.co.uk', 'amazon.ca', 'amazon.com.au',
         'amazon.de', 'amazon.fr', 'amazon.it', 'amazon.es', 'amazon.co.jp',
@@ -117,7 +117,7 @@ export class AmazonDataProvider {
         return { asin: null, cleanUrl: null };
       }
 
-      const match = parsed.pathname.match(/(?:\\/dp\\/|\\/gp\\/product\\/)([A-Z0-9]{10})(?:[\\/?]|$)/i);
+      const match = parsed.pathname.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})(?:[\/?]|$)/i);
       if (!match?.[1]) {
         return { asin: null, cleanUrl: null };
       }
