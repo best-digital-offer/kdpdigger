@@ -161,12 +161,27 @@ apiRouter.post('/research/search', async (req, res) => {
     }
   }
 
+  let charged = false;
+
   try {
+    // Keep Amazon enrichment bounded. Research must never fail just because
+    // the optional public autocomplete endpoint is slow or unavailable.
     const realSuggestions = await amazonProvider.getSearchSuggestions(cleanTopic);
+
+    if (user.role !== 'admin') {
+      charged = true;
+    }
+
     const report = await geminiService.generateFullResearch(cleanTopic, realSuggestions);
 
-    await db.addHistory(activeUserId, cleanTopic, 'full_report', report.id);
-    await db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
+    // Persistence is secondary to delivering the report. A history/log write
+    // failure must not turn a successfully generated report into a 500 error.
+    try {
+      await db.addHistory(activeUserId, cleanTopic, 'full_report', report.id);
+      await db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
+    } catch (persistenceError) {
+      console.error('Research persistence warning:', persistenceError);
+    }
 
     const updatedUser = await db.getUserById(activeUserId);
 
@@ -177,8 +192,19 @@ apiRouter.post('/research/search', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Research generation failure:', err);
+
+    // Do not leave the user permanently charged for a failed generation.
+    if (charged && user.role !== 'admin') {
+      try {
+        await db.addUserCredits(activeUserId, 1);
+      } catch (refundError) {
+        console.error('Failed to refund research credit:', refundError);
+      }
+    }
+
     res.status(500).json({
-      error: 'Unable to complete research request. Please try a different keyword or retry.',
+      error: 'Unable to generate the report right now. Please try again.',
+      detail: process.env.NODE_ENV === 'development' ? (err?.message || 'Unknown error') : undefined
     });
   }
 });
