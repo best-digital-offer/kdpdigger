@@ -16,6 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +108,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
         }
       });
       if (error) throw error;
-      setMsg('A verification code was sent to your email.');
+      setOtpSent(true);
+      setMsg('A 6-digit sign-in code was sent to your email. Keep this window open and enter the code here.');
     } catch (err: any) {
       setError(err?.message || 'Unable to send OTP.');
     } finally {
@@ -294,9 +296,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
                 {loading ? 'Sending...' : 'Send OTP Code'}
               </button>
             </form>
+            {otpSent && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-800">
+                Check your email for the 6-digit code. This page will remain open while you retrieve it on another device.
+              </div>
+            )}
             <form onSubmit={verifyOtp} className="space-y-3">
               <input inputMode="numeric" maxLength={6} value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                placeholder="6-digit code" className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
+                placeholder="6-digit code" aria-label="6-digit email verification code"
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
               <button disabled={loading || otp.length < 6} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
                 Verify OTP
               </button>
