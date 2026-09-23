@@ -37,23 +37,26 @@ import { SavedResearchView } from './components/SavedResearchView.tsx';
 import { HistoryView } from './components/HistoryView.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
+import { supabase, apiFetch } from './lib/supabase.ts';
 import { AdminPanelView } from './components/AdminPanelView.tsx';
 import { HelpView } from './components/HelpView.tsx';
 import { LandingPageView } from './components/LandingPageView.tsx';
 import { CompetitionBadge, DemandBadge, MarketMaturityBadge } from './components/Badges.tsx';
 
-const DEFAULT_USER: User = {
-  id: 'usr_demo',
-  email: 'author@demo.com',
-  name: 'KDP Author',
-  plan: 'Free Trial',
-  credits: 5,
-  role: 'admin', // Start with admin enabled so reviewer can evaluate all features including admin panel
-  createdAt: '2026-09-22T08:00:00.000Z'
+const GUEST_USER: User = {
+  id: '',
+  email: 'Not signed in',
+  name: 'Guest',
+  plan: 'Sign in required',
+  credits: 0,
+  role: 'user',
+  createdAt: new Date(0).toISOString()
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USER);
+  const [currentUser, setCurrentUser] = useState<User>(GUEST_USER);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLandingPage, setIsLandingPage] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
@@ -100,30 +103,69 @@ export default function App() {
     }
   ]);
 
-  // Load user data on startup
+  // Supabase Auth session lifecycle
   useEffect(() => {
-    fetch('/api/auth/me', { headers: { 'x-user-id': currentUser.id } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) setCurrentUser(data.user);
-      })
-      .catch(() => {
-        // Fallback to local default user
-      });
+    let mounted = true;
+
+    const loadCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (!session) {
+        setCurrentUser(GUEST_USER);
+        setIsAuthenticated(false);
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const res = await apiFetch('/api/auth/me');
+        const data = await res.json();
+        if (!res.ok || !data.user) throw new Error(data.error || 'Unable to load account');
+        if (mounted) {
+          setCurrentUser(data.user);
+          setIsAuthenticated(true);
+        }
+      } catch {
+        if (mounted) {
+          await supabase.auth.signOut();
+          setCurrentUser(GUEST_USER);
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    };
+
+    loadCurrentUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+      if (!mounted) return;
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(GUEST_USER);
+        setIsAuthenticated(false);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        await loadCurrentUser();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) setIsAuthModalOpen(true);
+  }, [authLoading, isAuthenticated]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Switch role between User and Admin
-  const handleSwitchUserRole = () => {
-    const newRole = currentUser.role === 'admin' ? 'user' : 'admin';
-    const updated = { ...currentUser, role: newRole as 'admin' | 'user' };
-    setCurrentUser(updated);
-    showToast(`Role switched to ${newRole.toUpperCase()} mode.`);
-  };
+
 
   // Core Research Execution
   const handleSearch = async (topic: string) => {
@@ -135,10 +177,10 @@ export default function App() {
     setIsLandingPage(false);
 
     try {
-      const res = await fetch('/api/research/search', {
+      const res = await apiFetch('/api/research/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-        body: JSON.stringify({ topic: cleanTopic, userId: currentUser.id })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: cleanTopic })
       });
 
       if (res.status === 402) {
@@ -182,7 +224,7 @@ export default function App() {
   const handleAnalyzeCustomUrl = async (urlOrAsin: string) => {
     setIsAnalyzingUrl(true);
     try {
-      const parseRes = await fetch('/api/research/parse-url', {
+      const parseRes = await apiFetch('/api/research/parse-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urlOrAsin })
@@ -282,7 +324,7 @@ export default function App() {
 
   // Plan Activation
   const handleActivatePlan = async (planId: string) => {
-    const res = await fetch('/api/billing/activate', {
+    const res = await apiFetch('/api/billing/activate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
       body: JSON.stringify({ planId })
@@ -296,21 +338,22 @@ export default function App() {
     }
   };
 
-  // User Sign-In
-  const handleLogin = async (email: string) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
-    });
-    const data = await res.json();
-    if (res.ok && data.user) {
-      setCurrentUser(data.user);
-      showToast(`Welcome ${data.user.name || data.user.email}!`);
-    } else {
-      throw new Error(data.error || 'Login failed');
-    }
+
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(GUEST_USER);
+    setIsAuthenticated(false);
+    setActiveTab('dashboard');
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600 text-sm">
+        Loading secure KDP Digger session...
+      </div>
+    );
+  }
 
   return (
     <div id="kdp-app-root" className="min-h-screen bg-slate-100/70 font-sans text-slate-900 flex flex-col">
@@ -331,11 +374,11 @@ export default function App() {
         onToggleLandingPage={() => setIsLandingPage(!isLandingPage)}
         isLandingPage={isLandingPage}
         onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-        onSwitchUserRole={handleSwitchUserRole}
+        onSignOut={handleSignOut}
       />
 
       {/* Landing Page Mode */}
-      {isLandingPage ? (
+      {!isAuthenticated || isLandingPage ? (
         <LandingPageView
           onStartResearch={(sampleTopic) => {
             setIsLandingPage(false);
@@ -671,8 +714,14 @@ export default function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onLogin={handleLogin}
-        currentUser={currentUser}
+        onAuthenticated={async () => {
+          const res = await apiFetch('/api/auth/me');
+          const data = await res.json();
+          if (!res.ok || !data.user) throw new Error(data.error || 'Unable to load account');
+          setCurrentUser(data.user);
+          setIsAuthenticated(true);
+          setIsLandingPage(false);
+        }}
       />
     </div>
   );
