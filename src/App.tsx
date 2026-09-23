@@ -53,34 +53,6 @@ const GUEST_USER: User = {
   createdAt: new Date(0).toISOString()
 };
 
-const EMPTY_REPORT: FullOpportunityReport = {
-  id: 'empty',
-  researchTopic: '',
-  createdAt: new Date(0).toISOString(),
-  summary: '',
-  sections: {
-    researchTopic: '',
-    marketOverview: '',
-    keywordOpportunitiesSummary: '',
-    nicheOpportunitiesSummary: '',
-    competitorLandscape: '',
-    pricingLandscape: '',
-    bsrSignals: '',
-    marketGapsSummary: '',
-    potentialAudienceSegments: [],
-    suggestedAngles: [],
-    competitionAssessment: '',
-    researchRisks: [],
-    whatToValidateNext: [],
-    finalResearchSummary: ''
-  },
-  keywords: { highRelevance: [], longTail: [], audienceSpecific: [], clusters: [] },
-  niches: [],
-  competitors: [],
-  marketGaps: [],
-  opportunities: []
-};
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User>(GUEST_USER);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -93,15 +65,21 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   // Core Research State
-  const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(EMPTY_REPORT);
-  const [searchTopic, setSearchTopic] = useState<string>('');
+  const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
+  const [searchTopic, setSearchTopic] = useState<string>('Christian prayer');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAnalyzingUrl, setIsAnalyzingUrl] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Comparison State
-  const [compareOpportunities, setCompareOpportunities] = useState<OpportunityItem[]>([]);
-  const [compareCompetitors, setCompareCompetitors] = useState<CompetitorBook[]>([]);
+  const [compareOpportunities, setCompareOpportunities] = useState<OpportunityItem[]>([
+    DEMO_CHRISTIAN_PRAYER_REPORT.opportunities[0],
+    DEMO_CHRISTIAN_PRAYER_REPORT.opportunities[1]
+  ]);
+  const [compareCompetitors, setCompareCompetitors] = useState<CompetitorBook[]>([
+    DEMO_CHRISTIAN_PRAYER_REPORT.competitors[0],
+    DEMO_CHRISTIAN_PRAYER_REPORT.competitors[1]
+  ]);
 
   // Saved & History State
   // Never preload demo records into an authenticated user's private library.
