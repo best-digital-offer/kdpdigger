@@ -116,6 +116,7 @@ export default function App() {
       // A null session can be observed briefly while Supabase is still
       // processing the OAuth redirect. Do not open the login modal here.
       if (!session?.access_token) {
+        if (mounted) setAuthLoading(false);
         return;
       }
 
@@ -204,17 +205,24 @@ export default function App() {
     });
 
     // Check for a session already restored before the listener ran.
-    // If Supabase is still processing an OAuth redirect, INITIAL_SESSION will
-    // deliver the result through the listener above.
+    // INITIAL_SESSION is the authoritative startup event. This fallback also
+    // prevents the app from remaining on the loading screen if no session exists.
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted && session) {
         void applySession(session);
       }
     });
 
+    // Safety timeout: if Supabase has no session and no auth event arrives,
+    // release the loading screen and let the normal sign-in modal appear.
+    const loadingTimeout = window.setTimeout(() => {
+      if (mounted) setAuthLoading(false);
+    }, 5000);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.clearTimeout(loadingTimeout);
     };
   }, []);
   useEffect(() => {
