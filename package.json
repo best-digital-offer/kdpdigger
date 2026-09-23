@@ -1,8 +1,14 @@
+
+## Use this exact `package.json`
+
+**Important: copy only the JSON between `{` and `}`. Do NOT copy the ` ``` ` lines.**
+
+:::writing{variant="document" id="41726" title="Correct KDP Digger package.json"}
 ```json
 {
-  "name": "react-example",
+  "name": "kdpdigger",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -16,11 +22,11 @@
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
+    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "vite": "^8.3.0",
-    "express": "^4.21.2",
     "dotenv": "^17.2.3",
     "motion": "^12.23.24"
   },
@@ -28,12 +34,11 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/express": "^4.17.21",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }
-```
