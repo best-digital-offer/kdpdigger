@@ -31,13 +31,13 @@ export const SavedResearchView: React.FC<SavedResearchViewProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1">
             <BookmarkCheck className="w-4 h-4" />
-            <span>Feature 9 &middot; Private Library</span>
+            <span>Saved Reports &middot; Private Library</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            Saved Research Library ({savedItems.length})
+            Saved Reports Library ({savedItems.length})
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Your saved keywords, sub-niches, and validated opportunities.
+            Every completed research run is saved here as one complete report containing all related research sections.
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export const SavedResearchView: React.FC<SavedResearchViewProps> = ({
       {filtered.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center max-w-md mx-auto my-8">
           <BookmarkCheck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-800 mb-1">No Saved Research Found</h3>
+          <h3 className="text-base font-bold text-slate-800 mb-1">No Saved Reports Found</h3>
           <p className="text-xs text-slate-500 mb-4">
             {savedItems.length === 0
               ? 'When researching, click "Save Opportunity" or save reports to access them here anytime.'
@@ -130,7 +130,7 @@ export const SavedResearchView: React.FC<SavedResearchViewProps> = ({
                   onClick={() => onOpenItem(item)}
                   className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
                 >
-                  <span>Open Research</span>
+                  <span>Open Report</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
