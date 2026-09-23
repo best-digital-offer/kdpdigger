@@ -188,6 +188,7 @@ export const ResearchHero: React.FC<ResearchHeroProps> = ({
 
   const handleSelectNiche = (group: NicheGroup) => {
     setSelectedNiche(group.name);
+    setInputVal(group.name === 'Christian & Prayer' ? 'Christian prayer' : group.name);
     setShowDropdown(false);
   };
 
