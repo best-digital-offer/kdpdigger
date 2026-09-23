@@ -12,10 +12,10 @@ interface PricingModalProps {
 const DEFAULT_PLANS: PricingPlan[] = [
   {
     id: 'plan_starter',
-    name: 'Starter Sprint',
-    price: 1,
-    durationDays: 3,
-    credits: 10,
+    name: 'Weekly',
+    price: 2.99,
+    durationDays: 7,
+    credits: 15,
     features: [
       '10 Full AI Opportunity Reports',
       'Live Amazon Autocomplete Keyword Clusters',
@@ -27,33 +27,33 @@ const DEFAULT_PLANS: PricingPlan[] = [
   },
   {
     id: 'plan_pro',
-    name: 'Author Pro',
-    price: 2,
-    durationDays: 10,
-    credits: 25,
+    name: 'Monthly',
+    price: 7.99,
+    durationDays: 30,
+    credits: 50,
     features: [
-      '25 Full AI Opportunity Reports',
-      'Full Competitor Comparison Matrix',
-      'Side-by-Side Opportunity Matrix',
+      '50 Full AI Opportunity Reports',
+      'Full Competitor Research & Comparison',
+      'Complete Keyword & Niche Research',
       'Live Amazon Autocomplete Keywords',
-      'Markdown, PDF & CSV Data Exports',
-      'Priority Fair-Use Processing'
+      'Saved Reports & Export Tools',
+      'Priority processing'
     ],
     recommended: true
   },
   {
     id: 'plan_publisher',
-    name: 'Publisher Elite',
-    price: 3,
-    durationDays: 30,
-    credits: 60,
+    name: 'Yearly',
+    price: 59.99,
+    durationDays: 365,
+    credits: 600,
     features: [
-      '60 Full AI Opportunity Reports',
-      'Unlimited Competitor ASIN Lookups',
-      'All 14 Structured Report Sections',
-      'Direct CSV & Markdown Export',
-      'Unlimited Saved Opportunities',
-      '30-Day Extended Access'
+      '600 Full AI Opportunity Reports',
+      'Unlimited saved report access',
+      'All complete research sections',
+      'CSV, Markdown & report exports',
+      'Priority processing & support',
+      'Best value for active publishers'
     ],
     recommended: false
   }
@@ -88,8 +88,8 @@ export const PricingModal: React.FC<PricingModalProps> = ({
   };
 
   return (
-    <div id="pricing-modal-overlay" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8">
+    <div id="pricing-modal-overlay" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-hidden">
+      <div className="bg-white rounded-2xl max-w-5xl w-full border border-slate-200 shadow-2xl overflow-hidden max-h-[94vh]">
         {/* Modal Top Bar */}
         <div className="p-6 bg-slate-900 text-white flex items-start justify-between">
           <div>
@@ -98,10 +98,10 @@ export const PricingModal: React.FC<PricingModalProps> = ({
               <span>Micro-SaaS Fair-Use Pricing</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              Accessible Self-Publishing Research ($1 &ndash; $3)
+              Simple KDP Research Pricing
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              No recurring predatory $99/mo subscriptions. Pay pocket change for the exact research credits you need.
+              Affordable subscriptions for authors who want powerful KDP research without expensive research tools.
             </p>
           </div>
           <button
@@ -116,7 +116,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
         <div className="bg-amber-50 px-6 py-2.5 border-b border-amber-200/80 flex items-center justify-between text-xs text-amber-950">
           <div className="flex items-center gap-2">
             <Coins className="w-4 h-4 text-amber-600" />
-            <span>Current Balance: <strong>{currentUser.credits} research credits</strong> ({currentUser.plan} Plan)</span>
+            <span>Current Balance: <strong>{currentUser.credits} research credits</strong> ({currentUser.plan} plan)</span>
           </div>
           <span className="font-semibold text-amber-800">1 Credit = 1 Comprehensive AI Opportunity Report</span>
         </div>
@@ -129,7 +129,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
         )}
 
         {/* Plans Grid */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 overflow-y-auto">
           {DEFAULT_PLANS.map((plan) => {
             const isCurrent = currentUser.plan.toLowerCase().includes(plan.name.toLowerCase().split(' ')[0]);
             return (
@@ -192,7 +192,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     )}
                   </button>
                   <span className="text-[10px] text-center text-slate-400 block mt-1.5">
-                    Simulated Instant Activation &bull; 0 Risk
+                    Secure checkout &bull; Cancel anytime
                   </span>
                 </div>
               </div>
@@ -206,7 +206,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>Fair-Use Policy: 1 research credit gives you a full multi-stage report with keyword clustering.</span>
           </div>
-          <span className="font-semibold text-slate-700">No automatic renewal renewals or hidden fees.</span>
+          <span className="font-semibold text-slate-700">No hidden fees. Cancel anytime.</span>
         </div>
       </div>
     </div>
