@@ -103,22 +103,33 @@ export class AmazonDataProvider {
       };
     }
 
-    // URL matching patterns:
-    // amazon.com/dp/ASIN
-    // amazon.com/gp/product/ASIN
-    // amazon.com/Book-Title-Here/dp/ASIN
-    const urlPattern = /(?:amazon\.[a-z\.]+\/(?:[^\/]+\/)?(?:dp|gp\/product)\/|dp\/)([B0-9][A-Z0-9]{9})/i;
-    const match = trimmed.match(urlPattern);
+    try {
+      const parsed = new URL(trimmed);
+      const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+      const allowedHosts = new Set([
+        'amazon.com', 'amazon.in', 'amazon.co.uk', 'amazon.ca', 'amazon.com.au',
+        'amazon.de', 'amazon.fr', 'amazon.it', 'amazon.es', 'amazon.co.jp',
+        'amazon.com.br', 'amazon.com.mx', 'amazon.nl', 'amazon.sg',
+        'amazon.ae', 'amazon.sa', 'amazon.se', 'amazon.pl', 'amazon.com.tr'
+      ]);
 
-    if (match && match[1]) {
+      if (!allowedHosts.has(host)) {
+        return { asin: null, cleanUrl: null };
+      }
+
+      const match = parsed.pathname.match(/(?:\\/dp\\/|\\/gp\\/product\\/)([A-Z0-9]{10})(?:[\\/?]|$)/i);
+      if (!match?.[1]) {
+        return { asin: null, cleanUrl: null };
+      }
+
       const asin = match[1].toUpperCase();
       return {
         asin,
-        cleanUrl: `https://www.amazon.com/dp/${asin}`
+        cleanUrl: `https://www.${host}/dp/${asin}`
       };
+    } catch {
+      return { asin: null, cleanUrl: null };
     }
-
-    return { asin: null, cleanUrl: null };
   }
 
   /**
@@ -166,7 +177,7 @@ export class AmazonDataProvider {
       const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\\s\\S]*?)<\\/span>/i);
       const authorMatch = html.match(/<span[^>]+class=["'][^"']*author[^"']*["'][^>]*>[\\s\\S]*?<a[^>]*>([\\s\\S]*?)<\\/a>/i);
       const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\\s\\S]*?([\\$£€₹][0-9][^<]*)<\\/span>/i);
-      const pagesMatch = html.match(/([?)([0-9]{2,5}) pages/i);
+      const pagesMatch = html.match(/([0-9]{2,5})\\s+pages/i);
       const dateMatch = html.match(/Publication date[^<]{0,100}<[^>]*>([^<]+)/i);
 
       const stripHtml = (value?: string) => value
