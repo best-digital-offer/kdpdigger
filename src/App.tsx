@@ -47,6 +47,7 @@ export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [allowAutoAuthModal, setAllowAutoAuthModal] = useState(false);
 
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
   const [searchTopic, setSearchTopic] = useState('Christian prayer');
@@ -75,13 +76,22 @@ export default function App() {
       setPasswordRecovery(false);
       setAuthError(null);
       setAuthLoading(false);
+      setAllowAutoAuthModal(true);
     };
 
     const loadUserFromSession = async (session: any | null) => {
       if (!mounted) return;
 
       if (!session?.access_token) {
-        if (!initialized) signOutState();
+        if (!initialized) {
+          const oauthPending = window.sessionStorage.getItem('kdp_oauth_pending') === '1';
+          if (oauthPending) {
+            setAuthLoading(true);
+            setAllowAutoAuthModal(false);
+            return;
+          }
+          signOutState();
+        }
         return;
       }
 
@@ -112,6 +122,8 @@ export default function App() {
             setIsLandingPage(false);
             setAuthLoading(false);
             setAuthError(null);
+            setAllowAutoAuthModal(false);
+            window.sessionStorage.removeItem('kdp_oauth_pending');
             initialized = true;
             return;
           }
@@ -140,6 +152,7 @@ export default function App() {
 
       if (event === 'SIGNED_OUT') {
         initialized = true;
+        window.sessionStorage.removeItem('kdp_oauth_pending');
         signOutState();
         return;
       }
@@ -176,7 +189,7 @@ export default function App() {
     const loadingTimeout = window.setTimeout(() => {
       if (mounted && !initialized) {
         setAuthLoading(false);
-        if (!hasSupabaseSession) setIsAuthModalOpen(true);
+        if (!hasSupabaseSession && !window.sessionStorage.getItem('kdp_oauth_pending')) setAllowAutoAuthModal(true);
       }
     }, 15000);
 
@@ -190,10 +203,10 @@ export default function App() {
   useEffect(() => {
     // Only show Google sign-in when there is genuinely NO Supabase session.
     // Never reopen it merely because /api/auth/me is temporarily unavailable.
-    if (!authLoading && !isAuthenticated && !hasSupabaseSession && !authError) {
+    if (!authLoading && !isAuthenticated && !hasSupabaseSession && !authError && allowAutoAuthModal) {
       setIsAuthModalOpen(true);
     }
-  }, [authLoading, isAuthenticated, hasSupabaseSession, authError]);
+  }, [authLoading, isAuthenticated, hasSupabaseSession, authError, allowAutoAuthModal]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
