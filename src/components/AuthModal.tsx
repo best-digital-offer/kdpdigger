@@ -18,6 +18,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleGoogle = async () => {
     setError(null);
     setLoading(true);
+    window.sessionStorage.setItem('kdp_oauth_pending', '1');
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -32,6 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
       if (error) throw error;
     } catch (err: any) {
+      window.sessionStorage.removeItem('kdp_oauth_pending');
       setError(err?.message || 'Google sign-in is not available right now.');
       setLoading(false);
     }
