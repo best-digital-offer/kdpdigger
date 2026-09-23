@@ -84,9 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => handleItemClick('dashboard')}
             className="flex items-center gap-2.5 text-left group"
           >
-            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-black text-base shadow-sm group-hover:bg-amber-400 transition-colors">
-              <Sparkles className="w-4 h-4" />
-            </div>
+            <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-8 h-8 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform" />
             <div>
               <span className="font-bold text-white tracking-tight text-sm block leading-none">
                 KDP Digger

@@ -91,9 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {isLandingPage && (
           <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-black text-base shadow-sm">
-              <Sparkles className="w-4 h-4" />
-            </span>
+            <img src="/kdp-digger-logo.png" alt="KDP Digger" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
             <div>
               <span className="font-extrabold text-slate-900 tracking-tight text-lg leading-tight block">
                 KDP Digger
