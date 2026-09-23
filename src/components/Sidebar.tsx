@@ -47,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const secondaryNavItems = [
-    { id: 'saved-research', label: 'Saved Research', icon: BookmarkCheck, count: savedCount },
+    { id: 'saved-research', label: 'Saved Reports', icon: BookmarkCheck, count: savedCount },
     { id: 'history', label: 'Research History', icon: History },
     { id: 'pricing', label: 'Pricing & Plans', icon: CreditCard },
     { id: 'account', label: 'Account & Usage', icon: UserCheck },
