@@ -3,62 +3,90 @@ import { db } from './db.ts';
 import { amazonProvider } from './amazonProvider.ts';
 import { geminiService } from './geminiService.ts';
 import { billingService } from './billingService.ts';
+import { createClient, type User as SupabaseUser } from '@supabase/supabase-js';
 
 export const apiRouter = express.Router();
 
 apiRouter.use(express.json({ limit: '10mb' }));
 apiRouter.use(express.urlencoded({ extended: true }));
 
-// Helper to extract authenticated user
-const getUserFromReq = (req: express.Request) => {
-  const authHeader = req.headers['x-user-id'] as string;
-  if (authHeader) {
-    const user = db.getUserById(authHeader);
-    if (user) return user;
+// Supabase Auth is the only source of identity.
+// The browser must send: Authorization: Bearer <Supabase access token>
+const supabaseAuth = createClient(
+  process.env.SUPABASE_URL || 'https://placeholder.supabase.co',
+  process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false
+    }
   }
-  return db.getUserById('usr_demo') || db.getUsers()[0];
+);
+
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authorization = req.headers.authorization;
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  try {
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !data.user) {
+      return res.status(401).json({ error: 'Invalid or expired authentication session.' });
+    }
+
+    (req as any).supabaseUser = data.user;
+
+    const email = data.user.email?.trim().toLowerCase();
+    if (!email) {
+      return res.status(401).json({ error: 'Authenticated account has no email address.' });
+    }
+
+    let localUser = db.getUserById(data.user.id);
+    if (!localUser) {
+      const adminEmails = (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean);
+      const role = adminEmails.includes(email) ? 'admin' : 'user';
+      localUser = db.createUser(
+        email,
+        (data.user.user_metadata?.full_name || data.user.user_metadata?.name || email.split('@')[0]) as string,
+        data.user.id,
+        role
+      );
+    } else {
+      db.updateUser(localUser.id, {
+        email,
+        name: (data.user.user_metadata?.full_name || data.user.user_metadata?.name || localUser.name) as string
+      });
+      localUser = db.getUserById(data.user.id) || localUser;
+    }
+
+    (req as any).appUser = localUser;
+    next();
+  } catch (error) {
+    console.error('Supabase authentication verification failed:', error);
+    return res.status(401).json({ error: 'Authentication verification failed.' });
+  }
 };
 
-// ===================== AUTH ROUTES =====================
-apiRouter.post('/auth/register', (req, res) => {
-  const { email, name } = req.body;
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Valid email address is required.' });
-  }
+apiRouter.use(requireAuth);
 
-  const existing = db.getUserByEmail(email);
-  if (existing) {
-    return res.json({ user: existing, message: 'Welcome back! Signed in with existing account.' });
-  }
-
-  const newUser = db.createUser(email, name);
-  return res.status(201).json({ user: newUser, message: 'Account created with 3 free research credits!' });
-});
-
-apiRouter.post('/auth/login', (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required.' });
-  }
-
-  const user = db.getUserByEmail(email);
+const getUserFromReq = (req: express.Request) => {
+  const user = (req as any).appUser;
   if (!user) {
-    const created = db.createUser(email);
-    return res.json({ user: created, message: 'New account provisioned with free credits.' });
+    throw new Error('Authenticated application user is missing.');
   }
-
-  db.updateUser(user.id, { lastActive: new Date().toISOString() });
-  return res.json({ user, message: 'Signed in successfully.' });
-});
+  return user;
+};
+// ===================== AUTH ROUTES =====================
 
 apiRouter.get('/auth/me', (req, res) => {
-  const user = getUserFromReq(req);
-  res.json({ user });
-});
-
-apiRouter.post('/auth/forgot-password', (req, res) => {
-  const { email } = req.body;
-  res.json({ message: `Password reset link has been dispatched to ${email || 'your email'}.` });
+  res.json({ user: getUserFromReq(req) });
 });
 
 // ===================== RESEARCH ROUTES =====================
@@ -108,17 +136,17 @@ apiRouter.post('/research/narrow-topic', async (req, res) => {
 
 // Core Full Research Engine
 apiRouter.post('/research/search', async (req, res) => {
-  const { topic, userId, skipCreditDeduction } = req.body;
+  const { topic } = req.body;
   if (!topic || !topic.trim()) {
     return res.status(400).json({ error: 'Research topic or keyword is required.' });
   }
 
   const cleanTopic = topic.trim();
-  const activeUserId = userId || 'usr_demo';
-  const user = db.getUserById(activeUserId);
+  const user = getUserFromReq(req);
+  const activeUserId = user.id;
 
   // Credit check
-  if (!skipCreditDeduction && user && user.role !== 'admin') {
+  if (user.role !== 'admin') {
     const creditRes = db.deductUserCredit(activeUserId, 1);
     if (!creditRes.success) {
       return res.status(402).json({
@@ -134,7 +162,7 @@ apiRouter.post('/research/search', async (req, res) => {
     const report = await geminiService.generateFullResearch(cleanTopic, realSuggestions);
 
     db.addHistory(activeUserId, cleanTopic, 'full_report', report.id);
-    db.logUsage(activeUserId, user?.email || 'guest', cleanTopic, 'full_report', 1, false);
+    db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
 
     const updatedUser = db.getUserById(activeUserId);
 
@@ -147,7 +175,6 @@ apiRouter.post('/research/search', async (req, res) => {
     console.error('Research generation failure:', err);
     res.status(500).json({
       error: 'Unable to complete research request. Please try a different keyword or retry.',
-      details: err?.message || 'Server error'
     });
   }
 });
