@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Mail, Check, Sparkles, Chrome, KeyRound } from 'lucide-react';
 import { supabase, getAppUrl } from '../lib/supabase.ts';
 
@@ -6,11 +6,12 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthenticated: () => Promise<void>;
+  passwordRecovery?: boolean;
 }
 
-type Mode = 'signin' | 'signup' | 'magic' | 'otp' | 'forgot';
+type Mode = 'signin' | 'signup' | 'magic' | 'otp' | 'forgot' | 'reset';
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthenticated }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthenticated, passwordRecovery = false }) => {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +19,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (passwordRecovery) setMode('reset');
+  }, [passwordRecovery]);
 
   if (!isOpen) return null;
 
@@ -145,6 +150,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
     }
   };
 
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetFeedback();
+    setLoading(true);
+
+    try {
+      if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setMsg('Password updated successfully. You can now continue using KDP Digger.');
+      await completeAuth();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to update your password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     resetFeedback();
@@ -168,6 +191,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
     mode === 'magic' ? 'Sign in with Magic Link' :
     mode === 'otp' ? 'Sign in with Email OTP' :
     mode === 'forgot' ? 'Reset your password' :
+    mode === 'reset' ? 'Choose a new password' :
     'Sign in to KDP Digger';
 
   return (
@@ -279,6 +303,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
             </form>
             <button onClick={() => setMode('signin')} className="w-full text-xs text-slate-500">Back to sign in</button>
           </div>
+        ) : mode === 'reset' ? (
+          <form onSubmit={handlePasswordRecovery} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">New Password</label>
+              <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
+            </div>
+            <button disabled={loading} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
+              {loading ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
         ) : (
           <form onSubmit={handleForgot} className="space-y-4">
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="author@example.com"
