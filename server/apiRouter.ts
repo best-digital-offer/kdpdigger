@@ -3,7 +3,7 @@ import { db } from './db.ts';
 import { amazonProvider } from './amazonProvider.ts';
 import { geminiService } from './geminiService.ts';
 import { billingService } from './billingService.ts';
-import { createClient, type User as SupabaseUser } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 export const apiRouter = express.Router();
 
@@ -49,25 +49,25 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       return res.status(401).json({ error: 'Authenticated account has no email address.' });
     }
 
-    let localUser = db.getUserById(data.user.id);
+    let localUser = await db.getUserById(data.user.id);
     if (!localUser) {
       const adminEmails = (process.env.ADMIN_EMAILS || '')
         .split(',')
         .map(value => value.trim().toLowerCase())
         .filter(Boolean);
       const role = adminEmails.includes(email) ? 'admin' : 'user';
-      localUser = db.createUser(
+      localUser = await db.createUser(
         email,
         (data.user.user_metadata?.full_name || data.user.user_metadata?.name || email.split('@')[0]) as string,
         data.user.id,
         role
       );
     } else {
-      db.updateUser(localUser.id, {
+      await db.updateUser(localUser.id, {
         email,
         name: (data.user.user_metadata?.full_name || data.user.user_metadata?.name || localUser.name) as string
       });
-      localUser = db.getUserById(data.user.id) || localUser;
+      localUser = (await db.getUserById(data.user.id)) || localUser;
     }
 
     (req as any).appUser = localUser;
@@ -151,7 +151,7 @@ apiRouter.post('/research/search', async (req, res) => {
 
   // Credit check
   if (user.role !== 'admin') {
-    const creditRes = db.deductUserCredit(activeUserId, 1);
+    const creditRes = await db.deductUserCredit(activeUserId, 1);
     if (!creditRes.success) {
       return res.status(402).json({
         error: creditRes.message || 'Insufficient research credits.',
@@ -165,10 +165,10 @@ apiRouter.post('/research/search', async (req, res) => {
     const realSuggestions = await amazonProvider.getSearchSuggestions(cleanTopic);
     const report = await geminiService.generateFullResearch(cleanTopic, realSuggestions);
 
-    db.addHistory(activeUserId, cleanTopic, 'full_report', report.id);
-    db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
+    await db.addHistory(activeUserId, cleanTopic, 'full_report', report.id);
+    await db.logUsage(activeUserId, user.email, cleanTopic, 'full_report', 1, false);
 
-    const updatedUser = db.getUserById(activeUserId);
+    const updatedUser = await db.getUserById(activeUserId);
 
     res.json({
       report,
@@ -186,7 +186,7 @@ apiRouter.post('/research/search', async (req, res) => {
 // ===================== SAVED REPORTS & HISTORY =====================
 apiRouter.get('/reports/saved', (req, res) => {
   const user = getUserFromReq(req);
-  const reports = db.getSavedReports(user.id);
+  const reports = await db.getSavedReports(user.id);
   res.json({ reports });
 });
 
@@ -198,30 +198,30 @@ apiRouter.post('/reports/save', (req, res) => {
     return res.status(400).json({ error: 'Topic and report data are required.' });
   }
 
-  const saved = db.saveReport(user.id, topic, type || 'full_report', reportData, notes);
+  const saved = await db.saveReport(user.id, topic, type || 'full_report', reportData, notes);
   res.json({ saved, message: 'Research saved to your private library.' });
 });
 
 apiRouter.post('/reports/toggle-favorite/:id', (req, res) => {
-  const fav = db.toggleFavoriteReport(req.params.id);
+  const fav = await db.toggleFavoriteReport(req.params.id, user.id);
   res.json({ favorite: fav });
 });
 
 apiRouter.delete('/reports/:id', (req, res) => {
   const user = getUserFromReq(req);
-  const deleted = db.deleteSavedReport(req.params.id, user.id);
+  const deleted = await db.deleteSavedReport(req.params.id, user.id);
   res.json({ success: deleted });
 });
 
 apiRouter.get('/history', (req, res) => {
   const user = getUserFromReq(req);
-  const history = db.getHistory(user.id);
+  const history = await db.getHistory(user.id);
   res.json({ history });
 });
 
 // ===================== BILLING & PLANS =====================
 apiRouter.get('/billing/plans', (req, res) => {
-  const plans = db.getPlans();
+  const plans = await db.getPlans();
   res.json({ plans });
 });
 
@@ -243,7 +243,7 @@ apiRouter.post('/billing/activate', (req, res) => {
 
   try {
     const result = billingService.applyPlanToUser(user.id, planId);
-    const updatedUser = db.getUserById(user.id);
+    const updatedUser = await db.getUserById(user.id);
     res.json({ ...result, user: updatedUser, message: 'Research credits added successfully!' });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -256,7 +256,7 @@ apiRouter.get('/admin/stats', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const stats = db.getAdminStats();
+  const stats = await db.getAdminStats();
   res.json({ stats });
 });
 
@@ -265,7 +265,7 @@ apiRouter.get('/admin/users', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const users = db.getUsers();
+  const users = await db.getUsers();
   res.json({ users });
 });
 
@@ -277,7 +277,7 @@ apiRouter.post('/admin/users/:id/credits', (req, res) => {
   const targetUserId = req.params.id;
   const { credits, plan } = req.body;
 
-  const updated = db.updateUser(targetUserId, {
+  const updated = await db.updateUser(targetUserId, {
     ...(credits !== undefined ? { credits: Number(credits) } : {}),
     ...(plan ? { plan } : {})
   });
@@ -290,7 +290,7 @@ apiRouter.post('/admin/plans/:id', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const updated = db.updatePlan(req.params.id, req.body);
+  const updated = await db.updatePlan(req.params.id, req.body);
   res.json({ plan: updated });
 });
 
@@ -299,7 +299,7 @@ apiRouter.get('/admin/usage', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const logs = db.getUsageLogs();
+  const logs = await db.getUsageLogs();
   res.json({ logs });
 });
 
@@ -308,7 +308,7 @@ apiRouter.get('/admin/settings', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const settings = db.getSettings();
+  const settings = await db.getSettings();
   const aiStatus = geminiService.getAiStatus();
   const enrichedSettings = {
     ...settings,
@@ -331,6 +331,6 @@ apiRouter.post('/admin/settings', (req, res) => {
   if (user.role !== 'admin') {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
-  const updated = db.updateSettings(req.body);
+  const updated = await db.updateSettings(req.body);
   res.json({ settings: updated });
 });
