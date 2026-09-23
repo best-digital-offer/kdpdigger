@@ -17,6 +17,7 @@ export interface AmazonSuggestion {
 export interface ExtractedBookInfo {
   asin: string;
   sourceUrl?: string;
+  subtitle?: string;
   title?: string;
   author?: string;
   format?: string;
@@ -137,23 +138,86 @@ export class AmazonDataProvider {
       };
     }
 
-    // In a production SaaS, this abstraction queries an approved catalog API (e.g. Amazon PA-API, Rainforest, or Keepa).
-    // In current environment, we verify ASIN format and provide genuine status.
-    // If not connected to external provider, we state the truth:
-    return {
-      asin,
-      sourceUrl: cleanUrl || `https://www.amazon.com/dp/${asin}`,
-      title: undefined,
-      author: undefined,
-      format: 'Paperback / Kindle',
-      price: 'Data unavailable (Requires approved Catalog API)',
-      pages: 'Data unavailable',
-      publicationDate: 'Data unavailable',
-      categories: ['Books'],
-      bsr: 'Data unavailable',
-      isAvailable: true,
-      statusMessage: `Detected valid ASIN: ${asin}. Live catalog data provider is currently in compliant abstraction mode. You can enter title and positioning details to run AI positioning analysis.`
-    };
+    const verifiedUrl = cleanUrl || `https://www.amazon.com/dp/${asin}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
+
+    try {
+      const response = await fetch(verifiedUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; KDP-Digger/1.0)',
+          'Accept': 'text/html,application/xhtml+xml'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return {
+          asin,
+          sourceUrl: verifiedUrl,
+          categories: [],
+          isAvailable: false,
+          statusMessage: `Amazon returned HTTP ${response.status}. We will not invent book details.`
+        };
+      }
+
+      const html = await response.text();
+      const titleMatch = html.match(/<span[^>]+id=["']productTitle["'][^>]*>([\\s\\S]*?)<\\/span>/i);
+      const authorMatch = html.match(/<span[^>]+class=["'][^"']*author[^"']*["'][^>]*>[\\s\\S]*?<a[^>]*>([\\s\\S]*?)<\\/a>/i);
+      const priceMatch = html.match(/(?:a-offscreen|priceToPay)[^>]*>[\\s\\S]*?([\\$£€₹][0-9][^<]*)<\\/span>/i);
+      const pagesMatch = html.match(/([?)([0-9]{2,5}) pages/i);
+      const dateMatch = html.match(/Publication date[^<]{0,100}<[^>]*>([^<]+)/i);
+
+      const stripHtml = (value?: string) => value
+        ?.replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/\\s+/g, ' ')
+        .trim();
+
+      const title = stripHtml(titleMatch?.[1]);
+      const author = stripHtml(authorMatch?.[1]);
+      const price = stripHtml(priceMatch?.[1]);
+      const pages = pagesMatch ? Number(pagesMatch[2]) : undefined;
+      const publicationDate = stripHtml(dateMatch?.[1]);
+
+      if (!title) {
+        return {
+          asin,
+          sourceUrl: verifiedUrl,
+          categories: [],
+          isAvailable: false,
+          statusMessage: 'The Amazon page could not be parsed reliably. No competitor details were returned because accuracy is required.'
+        };
+      }
+
+      return {
+        asin,
+        sourceUrl: verifiedUrl,
+        title,
+        author,
+        format: 'Amazon book listing',
+        price,
+        pages,
+        publicationDate,
+        categories: ['Books'],
+        bsr: 'Data unavailable',
+        isAvailable: true,
+        statusMessage: `Verified Amazon book page for ASIN ${asin}.`
+      };
+    } catch (error) {
+      clearTimeout(timeout);
+      return {
+        asin,
+        sourceUrl: verifiedUrl,
+        categories: [],
+        isAvailable: false,
+        statusMessage: 'Unable to reach the Amazon book detail page. No unverified competitor data was generated.'
+      };
+    }
   }
 }
 
