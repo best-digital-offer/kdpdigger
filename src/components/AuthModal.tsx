@@ -192,14 +192,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
               <Chrome className="w-4 h-4" /> Continue with Google
             </button>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
-              <button onClick={() => { resetFeedback(); setMode(mode === 'signin' ? 'signup' : 'signin'); }} className="text-amber-700 font-semibold hover:underline">
-                {mode === 'signin' ? 'Create account' : 'I already have an account'}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { resetFeedback(); setMode('signup'); }}
+                className={`py-2 rounded-lg text-xs font-bold border ${mode === 'signup' ? 'bg-amber-50 border-amber-400 text-amber-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                Sign Up
               </button>
-              <button onClick={() => { resetFeedback(); setMode('forgot'); }} className="text-slate-500 font-semibold hover:underline">
-                Forgot password?
+              <button
+                type="button"
+                onClick={() => { resetFeedback(); setMode('signin'); }}
+                className={`py-2 rounded-lg text-xs font-bold border ${mode === 'signin' ? 'bg-slate-100 border-slate-400 text-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                Sign In
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => { resetFeedback(); setMode('forgot'); }}
+              className="mt-3 w-full text-slate-500 text-[11px] font-semibold hover:underline"
+            >
+              Forgot password?
+            </button>
 
           </>
         ) : mode === 'reset' ? (
