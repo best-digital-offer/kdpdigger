@@ -1,78 +1,18 @@
-import fs from 'fs';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 import type { User, PricingPlan, SavedResearchItem, ResearchHistoryItem, UsageLog, SystemSettings } from '../src/types.ts';
 
-interface DatabaseSchema {
-  users: User[];
-  plans: PricingPlan[];
-  savedReports: SavedResearchItem[];
-  history: ResearchHistoryItem[];
-  usageLogs: UsageLog[];
-  settings: SystemSettings;
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!url || !serviceKey) {
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured on the server.');
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const supabase = createClient(url, serviceKey, {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
+});
 
-const DEFAULT_PLANS: PricingPlan[] = [
-  {
-    id: 'starter-3day',
-    name: '3-Day Sprint',
-    price: 1,
-    durationDays: 3,
-    durationLabel: '3 Days Full Access',
-    credits: 10,
-    popular: true,
-    description: 'Perfect for validating a single book idea before publishing.',
-    features: [
-      '10 Research Credits',
-      'Keyword Research & Clustering',
-      'Niche Breakdown & Angles',
-      'Competitor Positioning Analysis',
-      'Opportunity Finder Engine',
-      'AI Opportunity Reports',
-      'Full PDF & CSV Export'
-    ]
-  },
-  {
-    id: 'growth-10day',
-    name: '10-Day Deep Dive',
-    price: 2,
-    durationDays: 10,
-    durationLabel: '10 Days Full Access',
-    credits: 25,
-    popular: false,
-    description: 'Ideal for researching an entire publishing category or series.',
-    features: [
-      '25 Research Credits',
-      'All Research Tools & Signals',
-      'Competitor Gap Analysis',
-      'Side-by-Side Opportunity Comparison',
-      'Saved Research Library',
-      'Export to PDF & CSV'
-    ]
-  },
-  {
-    id: 'publisher-30day',
-    name: '30-Day Pro Publisher',
-    price: 3,
-    durationDays: 30,
-    durationLabel: '30 Days Full Access',
-    credits: 60,
-    popular: false,
-    description: 'Best for active publishers validating multiple quarterly releases.',
-    features: [
-      '60 Research Credits',
-      'Priority Gemini Analysis',
-      'Unlimited Saved Reports',
-      'Competitor Comparison Matrix',
-      'Market Gap Discovery',
-      'Fair-use Protection'
-    ]
-  }
-];
-
-const DEFAULT_SETTINGS: SystemSettings = {
+const defaultSettings: SystemSettings = {
   geminiConfigured: !!process.env.GEMINI_API_KEY,
   amazonDataProvider: 'autocomplete_public',
   paymentProvider: 'simulation',
@@ -81,289 +21,178 @@ const DEFAULT_SETTINGS: SystemSettings = {
   maintenanceMode: false
 };
 
-const INITIAL_USERS: User[] = [];
+const mapUser = (r: any): User => ({
+  id: r.id, email: r.email, name: r.name, role: r.role, credits: r.credits,
+  plan: r.plan, planExpiresAt: r.plan_expires_at, createdAt: r.created_at, lastActive: r.last_active
+});
 
-class Database {
-  private data: DatabaseSchema;
+const mapPlan = (r: any): PricingPlan => ({
+  id:r.id,name:r.name,price:Number(r.price),durationDays:r.duration_days,durationLabel:r.duration_label,
+  credits:r.credits,popular:r.popular,recommended:r.recommended,features:r.features || [],description:r.description
+});
 
-  constructor() {
-    this.data = this.loadData();
+const mapReport = (r: any): SavedResearchItem => ({
+  id:r.id,userId:r.user_id,topic:r.topic,type:r.type,createdAt:r.created_at,
+  opportunitiesCount:r.opportunities_count,reportData:r.report_data,notes:r.notes,favorite:r.favorite
+});
+
+export class Database {
+  async getUsers(): Promise<User[]> {
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at',{ascending:false});
+    if (error) throw error; return (data || []).map(mapUser);
   }
 
-  private loadData(): DatabaseSchema {
+  async getUserById(id:string): Promise<User|undefined> {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id',id).maybeSingle();
+    if (error) throw error; return data ? mapUser(data) : undefined;
+  }
+
+  async getUserByEmail(email:string): Promise<User|undefined> {
+    const { data, error } = await supabase.from('profiles').select('*').ilike('email',email.trim()).maybeSingle();
+    if (error) throw error; return data ? mapUser(data) : undefined;
+  }
+
+  async createUser(email:string,name?:string,authUserId?:string,role:User['role']='user'):Promise<User> {
+    if (!authUserId) throw new Error('A Supabase Auth user ID is required.');
+    const { data, error } = await supabase.from('profiles').insert({
+      id:authUserId,email:email.trim().toLowerCase(),name:name?.trim() || email.split('@')[0],
+      role,credits:defaultSettings.freeCreditsOnSignup,plan:'Free Trial'
+    }).select('*').single();
+    if (error) throw error; return mapUser(data);
+  }
+
+  async updateUser(id:string,updates:Partial<User>):Promise<User|undefined> {
+    const patch:any={last_active:new Date().toISOString()};
+    if(updates.email!==undefined) patch.email=updates.email;
+    if(updates.name!==undefined) patch.name=updates.name;
+    if(updates.role!==undefined) patch.role=updates.role;
+    if(updates.credits!==undefined) patch.credits=updates.credits;
+    if(updates.plan!==undefined) patch.plan=updates.plan;
+    if(updates.planExpiresAt!==undefined) patch.plan_expires_at=updates.planExpiresAt;
+    const {data,error}=await supabase.from('profiles').update(patch).eq('id',id).select('*').maybeSingle();
+    if(error) throw error; return data?mapUser(data):undefined;
+  }
+
+  async deductUserCredit(userId:string,amount=1) {
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      const {data,error}=await supabase.rpc('deduct_credit',{p_user_id:userId,p_amount:amount});
+      if(error) {
+        if(error.message.includes('Insufficient')) return {success:false,creditsRemaining:(await this.getUserById(userId))?.credits || 0,message:'Insufficient research credits. Please top up or upgrade plan.'};
+        throw error;
       }
-
-      if (fs.existsSync(DB_FILE)) {
-        const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        return {
-          users: parsed.users || INITIAL_USERS,
-          plans: parsed.plans || DEFAULT_PLANS,
-          savedReports: parsed.savedReports || [],
-          history: parsed.history || [],
-          usageLogs: parsed.usageLogs || [],
-          settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) }
-        };
-      }
-    } catch (e) {
-      console.warn('Could not read persistent DB file, initializing defaults', e);
-    }
-
-    const initial: DatabaseSchema = {
-      users: INITIAL_USERS,
-      plans: DEFAULT_PLANS,
-      savedReports: [],
-      history: [],
-      usageLogs: [],
-      settings: DEFAULT_SETTINGS
-    };
-
-    this.saveData(initial);
-    return initial;
-  }
-
-  private saveData(state: DatabaseSchema = this.data): void {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('Error saving DB state:', e);
+      const user=await this.getUserById(userId);
+      return {success:true,creditsRemaining:user?.role==='admin'?999:Number(data),message:undefined};
+    } catch(error:any) {
+      return {success:false,creditsRemaining:0,message:error.message || 'Unable to update credits.'};
     }
   }
 
-  // Users
-  getUsers(): User[] {
-    return this.data.users;
+  async addUserCredits(userId:string,amount:number,planName?:string,durationDays?:number):Promise<User|undefined> {
+    const user=await this.getUserById(userId); if(!user)return undefined;
+    const expires=durationDays?new Date(Date.now()+durationDays*86400000).toISOString():user.planExpiresAt;
+    return this.updateUser(userId,{credits:user.credits+amount,plan:planName||user.plan,planExpiresAt:expires});
   }
 
-  getUserById(id: string): User | undefined {
-    return this.data.users.find(u => u.id === id);
+  async getPlans():Promise<PricingPlan[]> {
+    const {data,error}=await supabase.from('pricing_plans').select('*').order('price');
+    if(error)throw error; return (data||[]).map(mapPlan);
   }
 
-  getUserByEmail(email: string): User | undefined {
-    return this.data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  async updatePlan(id:string,updates:Partial<PricingPlan>):Promise<PricingPlan|undefined> {
+    const patch:any={};
+    if(updates.name!==undefined)patch.name=updates.name;
+    if(updates.price!==undefined)patch.price=updates.price;
+    if(updates.durationDays!==undefined)patch.duration_days=updates.durationDays;
+    if(updates.durationLabel!==undefined)patch.duration_label=updates.durationLabel;
+    if(updates.credits!==undefined)patch.credits=updates.credits;
+    if(updates.popular!==undefined)patch.popular=updates.popular;
+    if(updates.recommended!==undefined)patch.recommended=updates.recommended;
+    if(updates.features!==undefined)patch.features=updates.features;
+    if(updates.description!==undefined)patch.description=updates.description;
+    const {data,error}=await supabase.from('pricing_plans').update(patch).eq('id',id).select('*').maybeSingle();
+    if(error)throw error; return data?mapPlan(data):undefined;
   }
 
-  createUser(
-    email: string,
-    name?: string,
-    authUserId?: string,
-    role: User['role'] = 'user'
-  ): User {
-    const newUser: User = {
-      id: authUserId || ('usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6)),
-      email: email.trim().toLowerCase(),
-      name: name?.trim() || email.split('@')[0],
-      role,
-      credits: this.data.settings.freeCreditsOnSignup,
-      plan: 'Free Trial',
-      createdAt: new Date().toISOString(),
-      lastActive: new Date().toISOString()
-    };
-    this.data.users.push(newUser);
-    this.saveData();
-    return newUser;
+  async getSavedReports(userId:string):Promise<SavedResearchItem[]> {
+    const {data,error}=await supabase.from('saved_reports').select('*').eq('user_id',userId).order('created_at',{ascending:false});
+    if(error)throw error; return (data||[]).map(mapReport);
   }
 
-  updateUser(id: string, updates: Partial<User>): User | undefined {
-    const index = this.data.users.findIndex(u => u.id === id);
-    if (index === -1) return undefined;
-    this.data.users[index] = { ...this.data.users[index], ...updates, lastActive: new Date().toISOString() };
-    this.saveData();
-    return this.data.users[index];
+  async getSavedReportById(id:string,userId?:string):Promise<SavedResearchItem|undefined> {
+    let q=supabase.from('saved_reports').select('*').eq('id',id); if(userId)q=q.eq('user_id',userId);
+    const {data,error}=await q.maybeSingle(); if(error)throw error; return data?mapReport(data):undefined;
   }
 
-  deductUserCredit(userId: string, amount: number = 1): { success: boolean; creditsRemaining: number; message?: string } {
-    const user = this.getUserById(userId);
-    if (!user) return { success: false, creditsRemaining: 0, message: 'User not found' };
-    
-    // Admin has unlimited bypass
-    if (user.role === 'admin') {
-      return { success: true, creditsRemaining: 999 };
-    }
-
-    if (user.credits < amount) {
-      return { success: false, creditsRemaining: user.credits, message: 'Insufficient research credits. Please top up or upgrade plan.' };
-    }
-
-    user.credits -= amount;
-    user.lastActive = new Date().toISOString();
-    this.saveData();
-    return { success: true, creditsRemaining: user.credits };
+  async saveReport(userId:string,topic:string,type:SavedResearchItem['type'],reportData:any,notes?:string):Promise<SavedResearchItem> {
+    const {data,error}=await supabase.from('saved_reports').insert({
+      user_id:userId,topic,type,opportunities_count:reportData?.opportunities?.length||0,report_data:reportData,notes
+    }).select('*').single(); if(error)throw error; return mapReport(data);
   }
 
-  addUserCredits(userId: string, amount: number, planName?: string, durationDays?: number): User | undefined {
-    const user = this.getUserById(userId);
-    if (!user) return undefined;
-    user.credits += amount;
-    if (planName) user.plan = planName;
-    if (durationDays) {
-      const expires = new Date();
-      expires.setDate(expires.getDate() + durationDays);
-      user.planExpiresAt = expires.toISOString();
-    }
-    user.lastActive = new Date().toISOString();
-    this.saveData();
-    return user;
+  async toggleFavoriteReport(id:string,userId:string):Promise<boolean> {
+    const report=await this.getSavedReportById(id,userId); if(!report)throw new Error('Report not found.');
+    const {data,error}=await supabase.from('saved_reports').update({favorite:!report.favorite}).eq('id',id).eq('user_id',userId).select('favorite').single();
+    if(error)throw error; return data.favorite;
   }
 
-  // Plans
-  getPlans(): PricingPlan[] {
-    return this.data.plans;
+  async deleteSavedReport(id:string,userId:string):Promise<boolean> {
+    const {data,error}=await supabase.from('saved_reports').delete().eq('id',id).eq('user_id',userId).select('id');
+    if(error)throw error; return (data||[]).length>0;
   }
 
-  updatePlan(planId: string, updates: Partial<PricingPlan>): PricingPlan | undefined {
-    const index = this.data.plans.findIndex(p => p.id === planId);
-    if (index === -1) return undefined;
-    this.data.plans[index] = { ...this.data.plans[index], ...updates };
-    this.saveData();
-    return this.data.plans[index];
+  async addHistory(userId:string,topic:string,type:string,reportId?:string):Promise<ResearchHistoryItem> {
+    const {data,error}=await supabase.from('research_history').insert({user_id:userId,topic,type,report_id:reportId||null}).select('*').single();
+    if(error)throw error; return {id:data.id,userId:data.user_id,topic:data.topic,type:data.type,createdAt:data.created_at,reportId:data.report_id};
   }
 
-  // Saved Reports
-  getSavedReports(userId: string): SavedResearchItem[] {
-    return this.data.savedReports.filter(r => r.userId === userId);
+  async getHistory(userId:string,limit=20):Promise<ResearchHistoryItem[]> {
+    const {data,error}=await supabase.from('research_history').select('*').eq('user_id',userId).order('created_at',{ascending:false}).limit(limit);
+    if(error)throw error; return (data||[]).map((r:any)=>({id:r.id,userId:r.user_id,topic:r.topic,type:r.type,createdAt:r.created_at,reportId:r.report_id}));
   }
 
-  getSavedReportById(id: string): SavedResearchItem | undefined {
-    return this.data.savedReports.find(r => r.id === id);
+  async logUsage(userId:string,userEmail:string,query:string,researchType:string,creditsUsed:number,cacheHit:boolean):Promise<void> {
+    const {error}=await supabase.from('usage_logs').insert({user_id:userId,user_email:userEmail,query,research_type:researchType,credits_used:creditsUsed,cache_hit:cacheHit});
+    if(error)throw error;
   }
 
-  saveReport(userId: string, topic: string, type: SavedResearchItem['type'], reportData: any, notes?: string): SavedResearchItem {
-    const reportItem: SavedResearchItem = {
-      id: 'rpt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-      userId,
-      topic,
-      type,
-      createdAt: new Date().toISOString(),
-      opportunitiesCount: reportData?.opportunities?.length || 0,
-      reportData,
-      notes,
-      favorite: false
-    };
-    this.data.savedReports.unshift(reportItem);
-    this.saveData();
-    return reportItem;
+  async getUsageLogs(limit=50):Promise<UsageLog[]> {
+    const {data,error}=await supabase.from('usage_logs').select('*').order('timestamp',{ascending:false}).limit(limit);
+    if(error)throw error; return (data||[]).map((r:any)=>({id:r.id,userId:r.user_id,userEmail:r.user_email,query:r.query,researchType:r.research_type,creditsUsed:r.credits_used,timestamp:r.timestamp,cacheHit:r.cache_hit}));
   }
 
-  toggleFavoriteReport(id: string): boolean {
-    const report = this.data.savedReports.find(r => r.id === id);
-    if (!report) return false;
-    report.favorite = !report.favorite;
-    this.saveData();
-    return report.favorite;
+  async getAdminStats() {
+    const users=await this.getUsers(), logs=await this.getUsageLogs(10000), history=await this.getHistoryForAdmin();
+    const now=Date.now(), day=86400000;
+    const newUsersToday=users.filter(u=>now-new Date(u.createdAt).getTime()<day).length;
+    const activeUsersToday=users.filter(u=>now-new Date(u.lastActive||u.createdAt).getTime()<day).length;
+    const topicCounts:Record<string,number>={}; history.forEach(h=>{const t=(h.topic||'general').toLowerCase().trim();topicCounts[t]=(topicCounts[t]||0)+1;});
+    const topTopics=Object.entries(topicCounts).map(([topic,count])=>({topic,count})).sort((a,b)=>b.count-a.count).slice(0,8);
+    const paidUsers=users.filter(u=>u.plan!=='Free Trial').length;
+    return {totalUsers:users.length,newUsersToday,activeUsersToday,totalResearchRequests:history.length,aiRequestsCount:logs.filter(l=>!l.cacheHit).length,creditsConsumedTotal:logs.reduce((a,l)=>a+l.creditsUsed,0),estimatedRevenue:paidUsers*2,conversionRate:users.length?((paidUsers/users.length)*100).toFixed(1)+'%':'0%',topTopics};
   }
 
-  deleteSavedReport(id: string, userId: string): boolean {
-    const initialLen = this.data.savedReports.length;
-    this.data.savedReports = this.data.savedReports.filter(r => !(r.id === id && (r.userId === userId || userId === 'usr_admin')));
-    const deleted = this.data.savedReports.length < initialLen;
-    if (deleted) this.saveData();
-    return deleted;
+  private async getHistoryForAdmin():Promise<ResearchHistoryItem[]> {
+    const {data,error}=await supabase.from('research_history').select('*').order('created_at',{ascending:false}).limit(10000);
+    if(error)throw error; return (data||[]).map((r:any)=>({id:r.id,userId:r.user_id,topic:r.topic,type:r.type,createdAt:r.created_at,reportId:r.report_id}));
   }
 
-  // History
-  addHistory(userId: string, topic: string, type: string, reportId?: string): ResearchHistoryItem {
-    const item: ResearchHistoryItem = {
-      id: 'hist_' + Date.now().toString(36),
-      userId,
-      topic,
-      type,
-      createdAt: new Date().toISOString(),
-      reportId
-    };
-    this.data.history.unshift(item);
-    if (this.data.history.length > 500) {
-      this.data.history = this.data.history.slice(0, 500);
-    }
-    this.saveData();
-    return item;
+  async getSettings():Promise<SystemSettings> {
+    const {data,error}=await supabase.from('system_settings').select('*').eq('id',true).single();
+    if(error)throw error;
+    return {...defaultSettings,geminiConfigured:!!process.env.GEMINI_API_KEY,amazonDataProvider:data.amazon_data_provider,paymentProvider:data.payment_provider,freeCreditsOnSignup:data.free_credits_on_signup,rateLimitPerMinute:data.rate_limit_per_minute,maintenanceMode:data.maintenance_mode,geminiEnabled:data.gemini_enabled,groqEnabled:data.groq_enabled};
   }
 
-  getHistory(userId: string, limit: number = 20): ResearchHistoryItem[] {
-    return this.data.history
-      .filter(h => h.userId === userId || userId === 'usr_admin')
-      .slice(0, limit);
-  }
-
-  // Usage Logs
-  logUsage(userId: string, userEmail: string, query: string, researchType: string, creditsUsed: number, cacheHit: boolean): void {
-    const log: UsageLog = {
-      id: 'log_' + Date.now().toString(36),
-      userId,
-      userEmail,
-      query,
-      researchType,
-      creditsUsed,
-      timestamp: new Date().toISOString(),
-      cacheHit
-    };
-    this.data.usageLogs.unshift(log);
-    if (this.data.usageLogs.length > 1000) {
-      this.data.usageLogs = this.data.usageLogs.slice(0, 1000);
-    }
-    this.saveData();
-  }
-
-  getUsageLogs(limit: number = 50): UsageLog[] {
-    return this.data.usageLogs.slice(0, limit);
-  }
-
-  // Admin stats
-  getAdminStats() {
-    const totalUsers = this.data.users.length;
-    const now = Date.now();
-    const oneDay = 24 * 3600 * 1000;
-
-    const newUsersToday = this.data.users.filter(u => now - new Date(u.createdAt).getTime() < oneDay).length;
-    const activeUsersToday = this.data.users.filter(u => now - new Date(u.lastActive || u.createdAt).getTime() < oneDay).length;
-
-    const totalResearchRequests = this.data.history.length;
-    const creditsConsumedTotal = this.data.usageLogs.reduce((acc, curr) => acc + curr.creditsUsed, 0);
-
-    // Topic frequencies
-    const topicCounts: Record<string, number> = {};
-    for (const h of this.data.history) {
-      const t = (h.topic || h.query || 'general').toLowerCase().trim();
-      topicCounts[t] = (topicCounts[t] || 0) + 1;
-    }
-    const topTopics = Object.entries(topicCounts)
-      .map(([topic, count]) => ({ topic, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-
-    const paidUsers = this.data.users.filter(u => u.plan !== 'Free Trial').length;
-    const conversionRate = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) + '%' : '0%';
-    const estimatedRevenue = paidUsers * 2; // Approximate base pricing average
-
-    return {
-      totalUsers,
-      newUsersToday,
-      activeUsersToday,
-      totalResearchRequests,
-      aiRequestsCount: this.data.usageLogs.filter(l => !l.cacheHit).length,
-      creditsConsumedTotal,
-      estimatedRevenue,
-      conversionRate,
-      topTopics
-    };
-  }
-
-  getSettings(): SystemSettings {
-    this.data.settings.geminiConfigured = !!process.env.GEMINI_API_KEY;
-    return this.data.settings;
-  }
-
-  updateSettings(updates: Partial<SystemSettings>): SystemSettings {
-    this.data.settings = { ...this.data.settings, ...updates };
-    this.saveData();
-    return this.data.settings;
+  async updateSettings(updates:Partial<SystemSettings>):Promise<SystemSettings> {
+    const patch:any={};
+    if(updates.amazonDataProvider!==undefined)patch.amazon_data_provider=updates.amazonDataProvider;
+    if(updates.paymentProvider!==undefined)patch.payment_provider=updates.paymentProvider;
+    if(updates.freeCreditsOnSignup!==undefined)patch.free_credits_on_signup=updates.freeCreditsOnSignup;
+    if(updates.rateLimitPerMinute!==undefined)patch.rate_limit_per_minute=updates.rateLimitPerMinute;
+    if(updates.maintenanceMode!==undefined)patch.maintenance_mode=updates.maintenanceMode;
+    if(updates.geminiEnabled!==undefined)patch.gemini_enabled=updates.geminiEnabled;
+    if(updates.groqEnabled!==undefined)patch.groq_enabled=updates.groqEnabled;
+    const {error}=await supabase.from('system_settings').update(patch).eq('id',true); if(error)throw error;
+    return this.getSettings();
   }
 }
-
-export const db = new Database();
+export const db=new Database();
