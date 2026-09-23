@@ -122,11 +122,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
     }
   };
 
-  const title =
-    mode === 'signup' ? 'Create your KDP Digger account' :
-    mode === 'forgot' ? 'Reset your password' :
-    mode === 'reset' ? 'Choose a new password' :
-    'Sign in to KDP Digger';
+  const handleGoogle = async () => {
+    resetFeedback();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getAppUrl() }
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      setError(err?.message || 'Google sign-in is not available right now.');
+      setLoading(false);
+    }
+  };
+
+  const title = 'Sign in to KDP Digger';
 
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -135,7 +146,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
           <X className="w-5 h-5" />
         </button>
 
-        <div className="text-center mb-5">
+        <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-xl bg-amber-500 text-slate-950 font-black text-xl flex items-center justify-center mx-auto mb-3">
             <Sparkles className="w-6 h-6" />
           </div>
@@ -156,89 +167,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthent
           </div>
         )}
 
-        {mode === 'signin' || mode === 'signup' ? (
-          <>
-            <form onSubmit={handlePasswordAuth} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Email Address</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="author@example.com"
-                    className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900 outline-none focus:border-amber-500" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Password</label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900 outline-none focus:border-amber-500" />
-                </div>
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 text-slate-950 font-black text-xs rounded-xl">
-                {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-              </button>
-            </form>
+        <button
+          onClick={handleGoogle}
+          disabled={loading}
+          className="w-full py-3 border border-slate-300 hover:bg-slate-50 disabled:bg-slate-100 text-slate-800 font-bold text-sm rounded-xl flex items-center justify-center gap-3"
+        >
+          <Chrome className="w-5 h-5" />
+          {loading ? 'Connecting to Google...' : 'Continue with Google'}
+        </button>
 
-            <div className="my-4 flex items-center gap-3 text-[10px] text-slate-400">
-              <span className="h-px bg-slate-200 flex-1" /> OR <span className="h-px bg-slate-200 flex-1" />
-            </div>
-
-            <button onClick={handleGoogle} disabled={loading}
-              className="w-full py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-2">
-              <Chrome className="w-4 h-4" /> Continue with Google
-            </button>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { resetFeedback(); setMode('signup'); }}
-                className={`py-2 rounded-lg text-xs font-bold border ${mode === 'signup' ? 'bg-amber-50 border-amber-400 text-amber-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-              >
-                Sign Up
-              </button>
-              <button
-                type="button"
-                onClick={() => { resetFeedback(); setMode('signin'); }}
-                className={`py-2 rounded-lg text-xs font-bold border ${mode === 'signin' ? 'bg-slate-100 border-slate-400 text-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-              >
-                Sign In
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => { resetFeedback(); setMode('forgot'); }}
-              className="mt-3 w-full text-slate-500 text-[11px] font-semibold hover:underline"
-            >
-              Forgot password?
-            </button>
-
-          </>
-        ) : mode === 'reset' ? (
-          <form onSubmit={handlePasswordRecovery} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">New Password</label>
-              <input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
-            </div>
-            <button disabled={loading} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleForgot} className="space-y-4">
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="author@example.com"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs text-slate-900" />
-            <button disabled={loading} className="w-full py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl">
-              {loading ? 'Sending...' : 'Send Reset Link'}
-            </button>
-            <button type="button" onClick={() => setMode('signin')} className="w-full text-xs text-slate-500">Back to sign in</button>
-          </form>
-        )}
+        <p className="text-[11px] text-center text-slate-500 mt-4">
+          Use your Google account to securely sign in or create your KDP Digger account.
+        </p>
       </div>
     </div>
   );
