@@ -234,6 +234,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated || !currentUser.id) return;
+    let cancelled = false;
+
+    const loadLibrary = async () => {
+      try {
+        const [reportsRes, historyRes] = await Promise.all([
+          apiFetch('/api/reports/saved'),
+          apiFetch('/api/history')
+        ]);
+        const reportsData = await reportsRes.json();
+        const historyData = await historyRes.json();
+        if (!cancelled) {
+          if (reportsRes.ok && Array.isArray(reportsData.reports)) {
+            setSavedItems(reportsData.reports);
+          }
+          if (historyRes.ok && Array.isArray(historyData.history)) {
+            setHistoryItems(historyData.history.map((item: any) => ({
+              ...item,
+              query: item.query || item.topic,
+              timestamp: item.timestamp || item.createdAt
+            })));
+          }
+        }
+      } catch (error) {
+        console.error('Unable to load saved reports/history:', error);
+      }
+    };
+
+    void loadLibrary();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, currentUser.id]);
+
+  useEffect(() => {
     // Only show Google sign-in when there is genuinely NO Supabase session.
     // Never reopen it merely because /api/auth/me is temporarily unavailable.
     if (!authLoading && !isAuthenticated && !hasSupabaseSession && !authError && allowAutoAuthModal) {
@@ -272,11 +305,48 @@ export default function App() {
         setCurrentReport(data.report);
         setHasResearchResults(true);
         if (data.creditsRemaining !== undefined) setCurrentUser(prev => ({ ...prev, credits: data.creditsRemaining }));
-        setHistoryItems(prev => [{
-          id: `hist_${Date.now()}`, userId: currentUser.id, query: cleanTopic,
-          timestamp: new Date().toISOString(), resultType: 'full_report', reportId: data.report.id
-        }, ...prev]);
-        showToast(`Research completed for "${cleanTopic}"!`);
+
+        // Save the complete research package automatically. Keyword, niche,
+        // competitor, opportunity and full-report views all come from this one
+        // report, so the user is charged once and gets one reusable Saved Report.
+        try {
+          const saveRes = await apiFetch('/api/reports/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: cleanTopic,
+              type: 'full_report',
+              reportData: data.report
+            })
+          });
+          const saveData = await saveRes.json();
+          if (saveRes.ok && saveData.saved) {
+            setSavedItems(prev => [saveData.saved, ...prev.filter(item => item.id !== saveData.saved.id)]);
+          } else {
+            console.error('Auto-save report failed:', saveData.error || saveRes.status);
+            showToast('Research completed, but the report could not be saved. Please retry.');
+          }
+        } catch (saveError) {
+          console.error('Auto-save report failed:', saveError);
+          showToast('Research completed, but the report could not be saved.');
+        }
+
+        // Refresh server-backed history so the saved report and audit log stay in sync.
+        try {
+          const historyRes = await apiFetch('/api/history');
+          const historyData = await historyRes.json();
+          if (historyRes.ok && Array.isArray(historyData.history)) {
+            setHistoryItems(historyData.history.map((item: any) => ({
+              ...item,
+              query: item.query || item.topic,
+              timestamp: item.timestamp || item.createdAt
+            })));
+          }
+        } catch (historyError) {
+          console.error('Unable to refresh research history:', historyError);
+        }
+
+        showToast(`Research completed and saved for "${cleanTopic}"!`);
       } else throw new Error(data.error || `Research failed (HTTP ${res.status})`);
     } catch (err: any) {
       console.error('Research request failed:', err);
@@ -306,19 +376,39 @@ export default function App() {
     }
   };
 
-  const handleSaveOpportunity = (opp: OpportunityItem) => {
-    const existing = savedItems.find(s => s.id === `saved_${opp.id}`);
+  const handleSaveOpportunity = async (opp: OpportunityItem) => {
+    const existing = savedItems.find(s => s.topic === opp.title && s.type === 'opportunity');
     if (existing) {
-      setSavedItems(prev => prev.filter(s => s.id !== existing.id));
-      showToast('Removed from saved library.');
+      try {
+        const res = await apiFetch(`/api/reports/${existing.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed');
+        setSavedItems(prev => prev.filter(s => s.id !== existing.id));
+        showToast('Removed from saved reports.');
+      } catch (error) {
+        console.error('Unable to remove saved report:', error);
+        showToast('Unable to remove the saved report.');
+      }
       return;
     }
-    const newItem: SavedResearchItem = {
-      id: `saved_${opp.id}`, userId: currentUser.id, topic: opp.title, type: 'opportunity',
-      reportData: currentReport, savedAt: new Date().toISOString(), notes: opp.opportunityExplanation
-    };
-    setSavedItems(prev => [newItem, ...prev]);
-    showToast(`Saved "${opp.title}" to library!`);
+    try {
+      const res = await apiFetch('/api/reports/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: opp.title,
+          type: 'opportunity',
+          reportData: currentReport,
+          notes: opp.opportunityExplanation
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.saved) throw new Error(data.error || 'Unable to save report');
+      setSavedItems(prev => [data.saved, ...prev]);
+      showToast(`Saved "${opp.title}" to saved reports!`);
+    } catch (error) {
+      console.error('Unable to save opportunity report:', error);
+      showToast('Unable to save this report.');
+    }
   };
 
   const isOpportunitySaved = (oppId: string) => savedItems.some(s => s.id === `saved_${oppId}`);
@@ -423,7 +513,40 @@ export default function App() {
               {activeTab === 'compare-opportunities' && <CompareOpportunitiesView opportunities={compareOpportunities} onRemoveFromCompare={(id) => setCompareOpportunities(prev => prev.filter(o => o.id !== id))} onSelectOpportunity={() => setActiveTab('opportunity-finder')} onClearAll={() => setCompareOpportunities([])} />}
               {activeTab === 'compare-competitors' && <CompetitorComparisonView competitors={compareCompetitors} onRemoveCompetitor={(id) => setCompareCompetitors(prev => prev.filter(b => b.id !== id))} onClearAll={() => setCompareCompetitors([])} />}
               {activeTab === 'opportunity-report' && <OpportunityReportView report={currentReport} onSelectKeyword={handleSearch} />}
-              {activeTab === 'saved-research' && <SavedResearchView savedItems={savedItems} onOpenItem={(item) => { if (item.reportData) { setCurrentReport(item.reportData); setSearchTopic(item.topic); setActiveTab('opportunity-finder'); showToast(`Opened saved research for "${item.topic}".`); } }} onDeleteItem={(id) => { setSavedItems(prev => prev.filter(s => s.id !== id)); showToast('Item deleted.'); }} onToggleFavorite={(id) => setSavedItems(prev => prev.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s))} />}
+              {activeTab === 'saved-research' && <SavedResearchView
+                savedItems={savedItems}
+                onOpenItem={(item) => {
+                  if (item.reportData) {
+                    setCurrentReport(item.reportData);
+                    setSearchTopic(item.topic);
+                    setHasResearchResults(true);
+                    setActiveTab('opportunity-report');
+                    showToast(`Opened saved report for "${item.topic}".`);
+                  }
+                }}
+                onDeleteItem={async (id) => {
+                  try {
+                    const res = await apiFetch(`/api/reports/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error('Delete failed');
+                    setSavedItems(prev => prev.filter(s => s.id !== id));
+                    showToast('Report deleted.');
+                  } catch (error) {
+                    console.error('Unable to delete saved report:', error);
+                    showToast('Unable to delete the report.');
+                  }
+                }}
+                onToggleFavorite={async (id) => {
+                  try {
+                    const res = await apiFetch(`/api/reports/toggle-favorite/${id}`, { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Favorite update failed');
+                    setSavedItems(prev => prev.map(s => s.id === id ? { ...s, favorite: data.favorite } : s));
+                  } catch (error) {
+                    console.error('Unable to update report favorite:', error);
+                    showToast('Unable to update favorite.');
+                  }
+                }}
+              />}
               {activeTab === 'history' && <HistoryView history={historyItems} onReRunSearch={handleSearch} />}
               {activeTab === 'pricing' && <div className="space-y-6"><div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs"><div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1"><Coins className="w-4 h-4" /><span>Plans & Credits</span></div><h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Research Credits & Fair-Use Pricing</h2><p className="text-xs text-slate-500 mt-0.5">Active balance: <strong>{currentUser.credits} research credits</strong> on <strong>{currentUser.plan}</strong>.</p></div><button onClick={() => setIsPricingModalOpen(true)} className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center gap-2"><Coins className="w-4 h-4" /><span>Open Plans & Add Credits ($1 &ndash; $3)</span></button></div>}
               {activeTab === 'account' && <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs max-w-xl mx-auto space-y-4"><h3 className="text-lg font-bold text-slate-900">Your Account Profile</h3><div className="space-y-2 text-xs"><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{currentUser.name}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Email</span><span className="font-semibold text-slate-900">{currentUser.email}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Active Plan</span><span className="font-semibold text-slate-900">{currentUser.plan}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Credits Remaining</span><span className="font-bold text-amber-700 text-sm">{currentUser.credits}</span></div><div className="flex justify-between py-2 border-b border-slate-100"><span className="text-slate-500">Role</span><span className="font-semibold text-indigo-700 uppercase">{currentUser.role}</span></div></div><div className="pt-4 flex items-center justify-end"><button onClick={handleSignOut} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold">Sign Out</button></div></div>}
