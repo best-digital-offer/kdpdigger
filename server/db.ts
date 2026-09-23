@@ -192,12 +192,17 @@ class Database {
     return this.data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
   }
 
-  createUser(email: string, name?: string): User {
+  createUser(
+    email: string,
+    name?: string,
+    authUserId?: string,
+    role: User['role'] = 'user'
+  ): User {
     const newUser: User = {
-      id: 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      id: authUserId || ('usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6)),
       email: email.trim().toLowerCase(),
       name: name?.trim() || email.split('@')[0],
-      role: 'user',
+      role,
       credits: this.data.settings.freeCreditsOnSignup,
       plan: 'Free Trial',
       createdAt: new Date().toISOString(),
