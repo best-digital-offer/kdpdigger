@@ -1,10 +1,5 @@
 
-## Use this exact `package.json`
 
-**Important: copy only the JSON between `{` and `}`. Do NOT copy the ` ``` ` lines.**
-
-:::writing{variant="document" id="41726" title="Correct KDP Digger package.json"}
-```json
 {
   "name": "kdpdigger",
   "private": true,
