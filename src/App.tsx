@@ -381,6 +381,10 @@ export default function App() {
       {!isAuthenticated || isLandingPage ? (
         <LandingPageView
           onStartResearch={(sampleTopic) => {
+            if (!isAuthenticated) {
+              setIsAuthModalOpen(true);
+              return;
+            }
             setIsLandingPage(false);
             if (sampleTopic) handleSearch(sampleTopic);
           }}
