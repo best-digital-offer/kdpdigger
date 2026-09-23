@@ -278,7 +278,21 @@ apiRouter.get('/admin/settings', (req, res) => {
     return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
   }
   const settings = db.getSettings();
-  res.json({ settings });
+  const aiStatus = geminiService.getAiStatus();
+  const enrichedSettings = {
+    ...settings,
+    geminiConfigured: aiStatus.geminiAvailable,
+    groqConfigured: aiStatus.groqAvailable,
+    activeAiProviders: aiStatus.activeProviders,
+    rollupStrategy: aiStatus.strategy,
+    geminiEnabled: settings.geminiEnabled !== false,
+    groqEnabled: aiStatus.groqAvailable
+  };
+  res.json({ settings: enrichedSettings });
+});
+
+apiRouter.get('/ai/status', (req, res) => {
+  res.json({ ai: geminiService.getAiStatus() });
 });
 
 apiRouter.post('/admin/settings', (req, res) => {

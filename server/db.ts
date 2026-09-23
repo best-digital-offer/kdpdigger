@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { User, PricingPlan, SavedResearchItem, ResearchHistoryItem, UsageLog, SystemSettings } from '../src/types.ts';
+import type { User, PricingPlan, SavedResearchItem, ResearchHistoryItem, UsageLog, SystemSettings } from '../src/types.ts';
 
 interface DatabaseSchema {
   users: User[];

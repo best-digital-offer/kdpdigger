@@ -1,19 +1,46 @@
+import 'dotenv/config';
 import { GoogleGenAI, Type } from '@google/genai';
-import { FullOpportunityReport, KeywordItem, KeywordCluster, NicheItem, CompetitorBook, MarketGap, OpportunityItem } from '../src/types.ts';
+import type { FullOpportunityReport, KeywordItem, KeywordCluster, NicheItem, CompetitorBook, MarketGap, OpportunityItem } from '../src/types.ts';
 
 // In-memory cache for research results to control API costs and speed up duplicate queries
 const researchCache = new Map<string, { report: FullOpportunityReport; timestamp: number }>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours cache
 
+function safeParseJson(raw: string): any {
+  let cleaned = (raw || '').trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+  return JSON.parse(cleaned);
+}
+
 export class GeminiResearchService {
   private ai: GoogleGenAI | null = null;
 
   constructor() {
-    this.initClient();
+    this.initGeminiClient();
   }
 
-  private initClient() {
-    const apiKey = process.env.GEMINI_API_KEY;
+  public getGeminiApiKey(): string | undefined {
+    return (
+      process.env.GEMINI_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.API_KEY
+    );
+  }
+
+  public getGroqApiKey(): string | undefined {
+    return (
+      process.env.GROQ_API_KEY ||
+      process.env.VITE_GROQ_API_KEY
+    );
+  }
+
+  private initGeminiClient() {
+    const apiKey = this.getGeminiApiKey();
     if (apiKey) {
       try {
         this.ai = new GoogleGenAI({
@@ -32,12 +59,41 @@ export class GeminiResearchService {
   }
 
   public isConfigured(): boolean {
-    return !!process.env.GEMINI_API_KEY;
+    return !!(this.getGeminiApiKey() || this.getGroqApiKey());
+  }
+
+  public getActiveProviderNames(): string[] {
+    const providers: string[] = [];
+    if (this.getGeminiApiKey()) providers.push('Gemini 3.8 Flash');
+    if (this.getGroqApiKey()) providers.push('Groq LLaMA 3.3 70B');
+    return providers;
+  }
+
+  public getAiStatus() {
+    const hasGemini = !!this.getGeminiApiKey();
+    const hasGroq = !!this.getGroqApiKey();
+    let strategy = 'heuristic_fallback';
+    if (hasGemini && hasGroq) {
+      strategy = 'gemini_primary_with_groq_rollup';
+    } else if (hasGemini) {
+      strategy = 'gemini_primary';
+    } else if (hasGroq) {
+      strategy = 'groq_primary';
+    }
+
+    return {
+      geminiAvailable: hasGemini,
+      groqAvailable: hasGroq,
+      strategy,
+      configured: hasGemini || hasGroq,
+      activeProviders: this.getActiveProviderNames()
+    };
   }
 
   /**
    * Generates a complete KDP research package for a given topic or keyword.
-   * Leverages Gemini 3.8 Flash for analytical synthesis and clustering.
+   * Multi-provider Rollup: Attempts Gemini first; if unavailable, rate-limited, or errored,
+   * seamlessly rolls over to Groq (LLaMA 3.3 70B); falls back to analytical heuristic model.
    */
   async generateFullResearch(topic: string, realAmazonSuggestions: string[] = []): Promise<FullOpportunityReport> {
     const cleanTopic = topic.trim().toLowerCase();
@@ -49,20 +105,37 @@ export class GeminiResearchService {
       return cached.report;
     }
 
-    if (!this.ai) {
-      this.initClient();
+    const hasGemini = !!this.getGeminiApiKey();
+    const hasGroq = !!this.getGroqApiKey();
+
+    let report: FullOpportunityReport | null = null;
+
+    // 1. Primary Attempt: Gemini
+    if (hasGemini) {
+      if (!this.ai) this.initGeminiClient();
+      if (this.ai) {
+        try {
+          console.log(`[AI Engine] Attempting research via Gemini 3.8 Flash for "${cleanTopic}"...`);
+          report = await this.queryGeminiForResearch(cleanTopic, realAmazonSuggestions);
+        } catch (err: any) {
+          console.warn(`[AI Rollup] Gemini request failed (${err?.message || 'error'}), rolling over to Groq...`);
+        }
+      }
     }
 
-    let report: FullOpportunityReport;
-
-    if (this.ai) {
+    // 2. Rollup / Secondary Attempt: Groq (LLaMA 3.3 70B)
+    if (!report && hasGroq) {
       try {
-        report = await this.queryGeminiForResearch(cleanTopic, realAmazonSuggestions);
-      } catch (err) {
-        console.warn('Gemini API call failed or timed out, using analytical heuristic model:', err);
-        report = this.generateAnalyticalReport(cleanTopic, realAmazonSuggestions);
+        console.log(`[AI Engine] Attempting research via Groq LLaMA 3.3 70B for "${cleanTopic}"...`);
+        report = await this.queryGroqForResearch(cleanTopic, realAmazonSuggestions);
+      } catch (err: any) {
+        console.warn(`[AI Rollup] Groq request failed (${err?.message || 'error'}), proceeding to fallback...`, err);
       }
-    } else {
+    }
+
+    // 3. Fallback Heuristic Generator (never crashes)
+    if (!report) {
+      console.log(`[AI Engine] Utilizing analytical heuristic generator for "${cleanTopic}"`);
       report = this.generateAnalyticalReport(cleanTopic, realAmazonSuggestions);
     }
 
@@ -72,9 +145,14 @@ export class GeminiResearchService {
   }
 
   /**
-   * Analyzes an individual competitor book positioning
+   * Analyzes an individual competitor book positioning with multi-provider rollup
    */
-  async analyzeCompetitorPositioning(title: string, subtitle: string = '', format: string = 'Paperback', price: string = ''): Promise<{
+  async analyzeCompetitorPositioning(
+    title: string,
+    subtitle: string = '',
+    format: string = 'Paperback',
+    price: string = ''
+  ): Promise<{
     targetAudience: string;
     exactTopic: string;
     formatType: string;
@@ -84,11 +162,79 @@ export class GeminiResearchService {
     detectedKeywordThemes: string[];
     marketAngle: string;
   }> {
-    if (!this.ai) this.initClient();
+    const hasGemini = !!this.getGeminiApiKey();
+    const hasGroq = !!this.getGroqApiKey();
 
-    if (this.ai) {
+    if (hasGemini) {
+      if (!this.ai) this.initGeminiClient();
+      if (this.ai) {
+        try {
+          return await this.queryGeminiForCompetitorPositioning(title, subtitle, format, price);
+        } catch (e: any) {
+          console.warn('[AI Rollup - Positioning] Gemini error, rolling over to Groq:', e?.message);
+        }
+      }
+    }
+
+    if (hasGroq) {
       try {
-        const prompt = `You are a KDP competitive positioning analyst.
+        return await this.queryGroqForCompetitorPositioning(title, subtitle, format, price);
+      } catch (e: any) {
+        console.warn('[AI Rollup - Positioning] Groq error:', e?.message);
+      }
+    }
+
+    return this.heuristicCompetitorPositioning(title, subtitle, format, price);
+  }
+
+  /**
+   * Performs step-by-step topic narrowing with multi-provider rollup
+   */
+  async narrowTopic(broadTopic: string): Promise<{
+    hierarchy: string[];
+    explanation: string;
+    narrowedOpportunities: {
+      title: string;
+      targetAudience: string;
+      rationale: string;
+      keywords: string[];
+    }[];
+  }> {
+    const hasGemini = !!this.getGeminiApiKey();
+    const hasGroq = !!this.getGroqApiKey();
+
+    if (hasGemini) {
+      if (!this.ai) this.initGeminiClient();
+      if (this.ai) {
+        try {
+          return await this.queryGeminiForNarrowTopic(broadTopic);
+        } catch (err: any) {
+          console.warn('[AI Rollup - Narrow] Gemini error, rolling over to Groq:', err?.message);
+        }
+      }
+    }
+
+    if (hasGroq) {
+      try {
+        return await this.queryGroqForNarrowTopic(broadTopic);
+      } catch (err: any) {
+        console.warn('[AI Rollup - Narrow] Groq error:', err?.message);
+      }
+    }
+
+    return this.heuristicNarrowTopic(broadTopic);
+  }
+
+  /**
+   * Gemini implementation for competitor positioning
+   */
+  private async queryGeminiForCompetitorPositioning(
+    title: string,
+    subtitle: string,
+    format: string,
+    price: string
+  ) {
+    const prompt = `You are a KDP competitive positioning analyst.
 Analyze this book for its publishing positioning.
 Title: "${title}"
 Subtitle: "${subtitle}"
@@ -100,37 +246,91 @@ CRITICAL RULES:
 - Analyze ONLY market positioning, audience target, topic specificity, subtitle strategy, and detected keyword themes.
 - Return structured JSON.`;
 
-        const response = await this.ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                targetAudience: { type: Type.STRING },
-                exactTopic: { type: Type.STRING },
-                formatType: { type: Type.STRING },
-                pageLengthAssessment: { type: Type.STRING },
-                pricingAssessment: { type: Type.STRING },
-                subtitleStrategy: { type: Type.STRING },
-                detectedKeywordThemes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                marketAngle: { type: Type.STRING }
-              },
-              required: ['targetAudience', 'exactTopic', 'formatType', 'subtitleStrategy', 'detectedKeywordThemes', 'marketAngle']
-            }
-          }
-        });
-
-        if (response.text) {
-          return JSON.parse(response.text.trim());
+    const response = await this.ai!.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            targetAudience: { type: Type.STRING },
+            exactTopic: { type: Type.STRING },
+            formatType: { type: Type.STRING },
+            pageLengthAssessment: { type: Type.STRING },
+            pricingAssessment: { type: Type.STRING },
+            subtitleStrategy: { type: Type.STRING },
+            detectedKeywordThemes: { type: Type.ARRAY, items: { type: Type.STRING } },
+            marketAngle: { type: Type.STRING }
+          },
+          required: ['targetAudience', 'exactTopic', 'formatType', 'subtitleStrategy', 'detectedKeywordThemes', 'marketAngle']
         }
-      } catch (e) {
-        console.warn('Competitor positioning Gemini error:', e);
       }
+    });
+
+    if (response.text) {
+      return safeParseJson(response.text);
+    }
+    throw new Error('Empty Gemini competitor positioning response');
+  }
+
+  /**
+   * Groq implementation for competitor positioning
+   */
+  private async queryGroqForCompetitorPositioning(
+    title: string,
+    subtitle: string,
+    format: string,
+    price: string
+  ) {
+    const apiKey = this.getGroqApiKey();
+    if (!apiKey) throw new Error('Groq API key not configured');
+
+    const systemInstruction = `You are a KDP competitive positioning analyst.
+Analyze this book for its publishing positioning.
+Title: "${title}"
+Subtitle: "${subtitle}"
+Format: "${format}"
+Price: "${price || 'Standard KDP'}"
+
+CRITICAL RULES:
+- DO NOT analyze reviews, review counts, or ratings.
+- Analyze ONLY market positioning, audience target, topic specificity, subtitle strategy, and detected keyword themes.
+- Output valid JSON only with keys: targetAudience, exactTopic, formatType, pageLengthAssessment, pricingAssessment, subtitleStrategy, detectedKeywordThemes (array of strings), marketAngle.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `Analyze positioning for book "${title}". Return JSON.` }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 1500
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API returned ${response.status}: ${errorText}`);
     }
 
-    // Fallback analytical positioning
+    const data: any = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Groq returned empty response');
+    return safeParseJson(content);
+  }
+
+  /**
+   * Heuristic fallback for competitor positioning
+   */
+  private heuristicCompetitorPositioning(title: string, subtitle: string, format: string, price: string) {
     return {
       targetAudience: `Readers and practitioners seeking focused guidance on ${title}`,
       exactTopic: `${title} ${subtitle ? ' - ' + subtitle : ''}`,
@@ -144,23 +344,10 @@ CRITICAL RULES:
   }
 
   /**
-   * Performs step-by-step topic narrowing for Opportunity Finder
+   * Gemini implementation for topic narrowing
    */
-  async narrowTopic(broadTopic: string): Promise<{
-    hierarchy: string[];
-    explanation: string;
-    narrowedOpportunities: {
-      title: string;
-      targetAudience: string;
-      rationale: string;
-      keywords: string[];
-    }[];
-  }> {
-    if (!this.ai) this.initClient();
-
-    if (this.ai) {
-      try {
-        const prompt = `You are the KDP Opportunity Discovery Engine.
+  private async queryGeminiForNarrowTopic(broadTopic: string) {
+    const prompt = `You are the KDP Opportunity Discovery Engine.
 A beginner author entered this broad topic: "${broadTopic}".
 Guide them by breaking down the broad topic into an educational hierarchy:
 Step 1: Broad Topic
@@ -173,44 +360,94 @@ Explain "How we narrowed this topic" and provide 3-4 specific book concepts they
 Remember: DO NOT invent fake search volume numbers. State qualitative opportunity indicators.
 Return JSON.`;
 
-        const response = await this.ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                hierarchy: { type: Type.ARRAY, items: { type: Type.STRING } },
-                explanation: { type: Type.STRING },
-                narrowedOpportunities: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING },
-                      targetAudience: { type: Type.STRING },
-                      rationale: { type: Type.STRING },
-                      keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    },
-                    required: ['title', 'targetAudience', 'rationale', 'keywords']
-                  }
-                }
-              },
-              required: ['hierarchy', 'explanation', 'narrowedOpportunities']
+    const response = await this.ai!.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            hierarchy: { type: Type.ARRAY, items: { type: Type.STRING } },
+            explanation: { type: Type.STRING },
+            narrowedOpportunities: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  targetAudience: { type: Type.STRING },
+                  rationale: { type: Type.STRING },
+                  keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['title', 'targetAudience', 'rationale', 'keywords']
+              }
             }
-          }
-        });
-
-        if (response.text) {
-          return JSON.parse(response.text.trim());
+          },
+          required: ['hierarchy', 'explanation', 'narrowedOpportunities']
         }
-      } catch (err) {
-        console.warn('Narrow topic Gemini error:', err);
       }
+    });
+
+    if (response.text) {
+      return safeParseJson(response.text);
+    }
+    throw new Error('Empty Gemini narrow topic response');
+  }
+
+  /**
+   * Groq implementation for topic narrowing
+   */
+  private async queryGroqForNarrowTopic(broadTopic: string) {
+    const apiKey = this.getGroqApiKey();
+    if (!apiKey) throw new Error('Groq API key not configured');
+
+    const systemInstruction = `You are the KDP Opportunity Discovery Engine.
+A beginner author entered this broad topic: "${broadTopic}".
+Guide them by breaking down the broad topic into an educational hierarchy:
+Step 1: Broad Topic
+Step 2: Sub-category
+Step 3: Specific Audience or Format
+Step 4: Problem-specific Angle
+Step 5: High-specificity Publishing Opportunity
+
+Explain "How we narrowed this topic" and provide 3-4 specific book concepts they could validate.
+Remember: DO NOT invent fake search volume numbers. State qualitative opportunity indicators.
+Output valid JSON only with keys: hierarchy (array of 5 strings), explanation (string), narrowedOpportunities (array of objects with title, targetAudience, rationale, keywords).`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `Narrow this topic: "${broadTopic}". Return JSON.` }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.5,
+        max_tokens: 2048
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API returned ${response.status}: ${errorText}`);
     }
 
-    // Heuristic narrowing
+    const data: any = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Groq returned empty response');
+    return safeParseJson(content);
+  }
+
+  /**
+   * Heuristic fallback for topic narrowing
+   */
+  private heuristicNarrowTopic(broadTopic: string) {
     const clean = broadTopic.trim();
     return {
       hierarchy: [
@@ -241,6 +478,53 @@ Return JSON.`;
           keywords: [`bedtime ${clean}`, `${clean} for sleep`, `evening ${clean}`, `${clean} for anxiety`]
         }
       ]
+    };
+  }
+
+  /**
+   * Builds FullOpportunityReport from parsed JSON structure
+   */
+  private buildReportFromParsedJson(topic: string, parsed: any): FullOpportunityReport {
+    const reportId = 'rep_' + Date.now().toString(36);
+    return {
+      id: reportId,
+      researchTopic: topic,
+      createdAt: new Date().toISOString(),
+      summary: parsed.summary || `Comprehensive KDP market research analysis for "${topic}" with high-intent keyword clustering, audience sub-niches, and competitive positioning gaps.`,
+      sections: {
+        researchTopic: topic,
+        marketOverview: parsed.sections?.marketOverview || `Market overview and discovery landscape for "${topic}".`,
+        keywordOpportunitiesSummary: parsed.sections?.keywordOpportunitiesSummary || 'Keywords with commercial intent identified.',
+        nicheOpportunitiesSummary: parsed.sections?.nicheOpportunitiesSummary || 'Sub-niche opportunities identified.',
+        competitorLandscape: parsed.sections?.competitorLandscape || 'Analysis of active competitors.',
+        pricingLandscape: parsed.sections?.pricingLandscape || 'Standard KDP pricing distribution ($8.99 - $14.99).',
+        bsrSignals: parsed.sections?.bsrSignals || 'Healthy sales velocity across top titles.',
+        marketGapsSummary: parsed.sections?.marketGapsSummary || 'Underserved publishing angles detected.',
+        potentialAudienceSegments: Array.isArray(parsed.sections?.potentialAudienceSegments) && parsed.sections.potentialAudienceSegments.length > 0
+          ? parsed.sections.potentialAudienceSegments
+          : [`Beginners in ${topic}`, `Busy working adults`, `Practitioners seeking structured routines`],
+        suggestedAngles: Array.isArray(parsed.sections?.suggestedAngles) && parsed.sections.suggestedAngles.length > 0
+          ? parsed.sections.suggestedAngles
+          : [`Interactive guided journal`, `Micro-habit devotional`, `Visual framework workbook`],
+        competitionAssessment: parsed.sections?.competitionAssessment || 'Moderate competition with room for differentiated positioning.',
+        researchRisks: Array.isArray(parsed.sections?.researchRisks) && parsed.sections.researchRisks.length > 0
+          ? parsed.sections.researchRisks
+          : ['Category crowded by low-effort generalists', 'Keywords require long-tail specificity'],
+        whatToValidateNext: Array.isArray(parsed.sections?.whatToValidateNext) && parsed.sections.whatToValidateNext.length > 0
+          ? parsed.sections.whatToValidateNext
+          : ['Check live Amazon cover trends', 'Validate interior page count and printing costs', 'Confirm trademark clearance'],
+        finalResearchSummary: parsed.sections?.finalResearchSummary || 'Proceed with targeted positioning and long-tail keyword architecture.'
+      },
+      keywords: {
+        highRelevance: (parsed.keywords?.highRelevance || []).map((k: any, i: number) => ({ id: `khr_${i}`, ...k })),
+        longTail: (parsed.keywords?.longTail || []).map((k: any, i: number) => ({ id: `klt_${i}`, ...k })),
+        audienceSpecific: (parsed.keywords?.audienceSpecific || []).map((k: any, i: number) => ({ id: `kas_${i}`, ...k })),
+        clusters: parsed.keywords?.clusters || []
+      },
+      niches: (parsed.niches || []).map((n: any, i: number) => ({ id: `nch_${i}`, ...n })),
+      competitors: (parsed.competitors || []).map((c: any, i: number) => ({ id: `comp_${i}`, ...c })),
+      marketGaps: (parsed.marketGaps || []).map((g: any, i: number) => ({ id: `gap_${i}`, ...g })),
+      opportunities: (parsed.opportunities || []).map((o: any, i: number) => ({ id: `opp_${i}`, ...o }))
     };
   }
 
@@ -496,27 +780,203 @@ Generate:
     });
 
     const responseText = response.text || '{}';
-    const parsed = JSON.parse(responseText.trim());
+    const parsed = safeParseJson(responseText);
+    return this.buildReportFromParsedJson(topic, parsed);
+  }
 
-    // Map IDs
-    const reportId = 'rep_' + Date.now().toString(36);
-    return {
-      id: reportId,
-      researchTopic: topic,
-      createdAt: new Date().toISOString(),
-      summary: parsed.summary,
-      sections: parsed.sections,
-      keywords: {
-        highRelevance: (parsed.keywords.highRelevance || []).map((k: any, i: number) => ({ id: `khr_${i}`, ...k })),
-        longTail: (parsed.keywords.longTail || []).map((k: any, i: number) => ({ id: `klt_${i}`, ...k })),
-        audienceSpecific: (parsed.keywords.audienceSpecific || []).map((k: any, i: number) => ({ id: `kas_${i}`, ...k })),
-        clusters: parsed.keywords.clusters || []
+  /**
+   * Calls Groq LLaMA 3.3 70B Versatile to synthesize research data
+   */
+  private async queryGroqForResearch(topic: string, realAmazonSuggestions: string[]): Promise<FullOpportunityReport> {
+    const apiKey = this.getGroqApiKey();
+    if (!apiKey) throw new Error('Groq API key not configured');
+
+    const suggestionsContext = realAmazonSuggestions.length > 0
+      ? `Real Amazon search suggestions retrieved for this topic: [${realAmazonSuggestions.slice(0, 15).map(s => `"${s}"`).join(', ')}]`
+      : 'No live external suggestions pre-loaded.';
+
+    const systemInstruction = `You are the analytical engine behind KDP Digger ("Dig Deeper. Find Better KDP Opportunities."), a professional research platform for Amazon Kindle Direct Publishing (KDP) authors.
+Strict Product Rules:
+1. ONLY research, market signals, keyword clustering, and niche validation.
+2. DO NOT generate book content, novels, interiors, or covers.
+3. NEVER fabricate exact search volume numbers. Use qualitative signals: 'Strong', 'Moderate', 'Emerging', 'Limited data'.
+4. NEVER fabricate fake review counts or star ratings. Strictly omit review data.
+5. NEVER guarantee bestsellers or sales. Use cautious, evidence-based language like "Potential opportunity", "Market signal", "Analytical hypothesis".
+6. Analyze genuine market positioning, format variations (devotional, journal, workbook, activity, planner), price landscapes, and market gaps.
+7. Return strictly valid JSON adhering to the specified schema. Output JSON ONLY.`;
+
+    const prompt = `Perform a comprehensive KDP market research analysis for the topic: "${topic}".
+${suggestionsContext}
+
+Generate JSON with the following structure:
+{
+  "summary": "High-level summary of the research and positioning opportunities",
+  "sections": {
+    "researchTopic": "${topic}",
+    "marketOverview": "Detailed overview of customer intent and volume",
+    "keywordOpportunitiesSummary": "Summary of search keyword landscape",
+    "nicheOpportunitiesSummary": "Summary of sub-niche dynamics",
+    "competitorLandscape": "Overview of active competitor archetypes",
+    "pricingLandscape": "Pricing norms and opportunity tiers",
+    "bsrSignals": "Sales velocity signals across the category",
+    "marketGapsSummary": "Specific underserved reader needs",
+    "potentialAudienceSegments": ["Audience 1", "Audience 2", "Audience 3"],
+    "suggestedAngles": ["Angle 1", "Angle 2", "Angle 3"],
+    "competitionAssessment": "Assessment of difficulty and barrier to entry",
+    "researchRisks": ["Risk 1", "Risk 2"],
+    "whatToValidateNext": ["Validation step 1", "Validation step 2", "Validation step 3"],
+    "finalResearchSummary": "Actionable conclusion for the author"
+  },
+  "keywords": {
+    "highRelevance": [
+      {
+        "keyword": "example keyword",
+        "relevance": "High",
+        "competitionSignal": "Low|Moderate|High",
+        "commercialIntent": "High|Medium|Low",
+        "keywordType": "high_relevance",
+        "demandSignal": "Strong|Moderate|Emerging"
+      }
+    ],
+    "longTail": [
+      {
+        "keyword": "example long tail keyword",
+        "relevance": "High|Moderate",
+        "competitionSignal": "Low|Moderate|High",
+        "commercialIntent": "High|Medium|Low",
+        "keywordType": "long_tail",
+        "demandSignal": "Strong|Moderate|Emerging"
+      }
+    ],
+    "audienceSpecific": [
+      {
+        "keyword": "example audience keyword",
+        "relevance": "High|Moderate",
+        "competitionSignal": "Low|Moderate|High",
+        "commercialIntent": "High|Medium|Low",
+        "keywordType": "audience_specific",
+        "demandSignal": "Strong|Moderate|Emerging"
+      }
+    ],
+    "clusters": [
+      {
+        "theme": "Theme Name",
+        "description": "Why this cluster exists",
+        "keywords": ["kw1", "kw2", "kw3"]
+      }
+    ]
+  },
+  "niches": [
+    {
+      "nicheName": "Specific Niche Name",
+      "broadCategory": "Parent Category",
+      "relatedKeywords": ["kw1", "kw2"],
+      "competitionSignal": "Low|Moderate|High",
+      "demandSignal": "Strong|Moderate|Emerging",
+      "competitorCountEstimated": "Low (Under 300 results)|Moderate (500-1,000)|High (2,000+)",
+      "priceRange": "$9.99 - $14.99",
+      "bsrRange": "50,000 - 150,000",
+      "marketMaturity": "Early Growth|Mature|Saturated",
+      "opportunityInterpretation": "Analytical breakdown of this niche",
+      "suggestedAngles": ["Angle 1", "Angle 2"]
+    }
+  ],
+  "competitors": [
+    {
+      "asin": "B08EXAMPLE",
+      "title": "Representative Competitor Title",
+      "subtitle": "Clear benefit-driven subtitle",
+      "author": "Independent Publishing Group",
+      "price": "$11.99",
+      "format": "Paperback / Guided Journal",
+      "pages": "128 pages",
+      "publicationDate": "2024",
+      "categories": ["Category A", "Category B"],
+      "bsr": "Top 80k in Books",
+      "availableFormats": ["Paperback", "Kindle"],
+      "positioningAnalysis": {
+        "targetAudience": "Identified target buyer",
+        "exactTopic": "Precise niche focus",
+        "formatType": "Paperback Guided Workbook",
+        "pageLengthAssessment": "Optimal prompt length for daily use",
+        "pricingAssessment": "Standard mid-market positioning",
+        "subtitleStrategy": "Keyword-optimized descriptive subtitle",
+        "detectedKeywordThemes": ["keyword1", "keyword2"],
+        "marketAngle": "Core hook and unique selling proposition"
+      }
+    }
+  ],
+  "marketGaps": [
+    {
+      "commonTheme": "Overcrowded Theme",
+      "underservedAngle": "Specific Underserved Variation",
+      "targetAudience": "Under-catered reader demographic",
+      "rationale": "Why current competitors miss this audience",
+      "exampleConcept": "Hypothetical differentiated book title concept"
+    }
+  ],
+  "opportunities": [
+    {
+      "title": "Specific High-Potential Concept",
+      "narrowingHierarchy": ["Broad Idea", "Sub-category", "Audience", "Angle", "Specific Opportunity"],
+      "narrowingExplanation": "Detailed explanation of the narrowing path",
+      "relatedKeywords": ["keyword1", "keyword2", "keyword3"],
+      "competitionSignal": "Low",
+      "demandSignal": "Strong",
+      "marketMaturity": "Early Growth",
+      "competitorCountInfo": "Fewer than 400 competing titles",
+      "priceRangeInfo": "$10.99 - $13.99",
+      "bsrSignalInfo": "Consistent sub-100k BSRs in sub-category",
+      "opportunityExplanation": "Why this specific opportunity stands out",
+      "whyInvestigate": {
+        "specificity": "High topic granularity",
+        "audience": "Clearly motivated buyer demographic",
+        "problem": "Unaddressed daily pain point",
+        "competitorSituation": "Incumbents are generic or outdated",
+        "keywordOpportunities": "High search volume with lower keyword saturation"
       },
-      niches: (parsed.niches || []).map((n: any, i: number) => ({ id: `nch_${i}`, ...n })),
-      competitors: (parsed.competitors || []).map((c: any, i: number) => ({ id: `comp_${i}`, ...c })),
-      marketGaps: (parsed.marketGaps || []).map((g: any, i: number) => ({ id: `gap_${i}`, ...g })),
-      opportunities: (parsed.opportunities || []).map((o: any, i: number) => ({ id: `opp_${i}`, ...o }))
-    };
+      "suggestedBookAngles": ["Angle A", "Angle B", "Angle C"],
+      "scorecard": {
+        "keywordRelevance": "High",
+        "competitionSignal": "Low",
+        "nicheSpecificity": "High",
+        "marketMaturity": "Early Growth",
+        "dataConfidence": "Strong",
+        "differentiationPotential": "High"
+      }
+    }
+  ]
+}`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 4096
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API returned ${response.status}: ${errorText}`);
+    }
+
+    const data: any = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Groq returned empty response');
+
+    const parsed = safeParseJson(content);
+    return this.buildReportFromParsedJson(topic, parsed);
   }
 
   /**

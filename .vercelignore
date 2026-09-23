@@ -1,0 +1,14 @@
+# Git and system
+.git
+.github
+.DS_Store
+
+# Temporary and build
+node_modules
+dist
+.cache
+*.log
+
+# Dev scripts
+server.ts
+start.sh

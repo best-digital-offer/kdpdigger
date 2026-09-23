@@ -216,6 +216,9 @@ export interface UsageLog {
 
 export interface SystemSettings {
   geminiConfigured: boolean;
+  groqConfigured?: boolean;
+  activeAiProviders?: string[];
+  rollupStrategy?: string;
   amazonDataProvider: string; // 'autocomplete_public' | 'mock_compliant' | 'custom_api'
   paymentProvider: 'stripe' | 'lemon_squeezy' | 'paddle' | 'dodo' | 'simulation';
   freeCreditsOnSignup: number;
@@ -223,5 +226,6 @@ export interface SystemSettings {
   maintenanceMode: boolean;
   amazonDataProviderEnabled?: boolean;
   geminiEnabled?: boolean;
+  groqEnabled?: boolean;
   simulationMode?: boolean;
 }
