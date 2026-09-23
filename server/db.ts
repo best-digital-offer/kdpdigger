@@ -81,28 +81,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   maintenanceMode: false
 };
 
-const INITIAL_USERS: User[] = [
-  {
-    id: 'usr_admin',
-    email: 'admin@kdpopportunity.com',
-    name: 'KDP Admin',
-    role: 'admin',
-    credits: 999,
-    plan: 'Admin Master',
-    createdAt: '2026-09-01T00:00:00.000Z',
-    lastActive: new Date().toISOString()
-  },
-  {
-    id: 'usr_demo',
-    email: 'author@kdpdemo.com',
-    name: 'Sarah Publisher',
-    role: 'user',
-    credits: 3,
-    plan: 'Free Trial',
-    createdAt: '2026-09-20T10:00:00.000Z',
-    lastActive: new Date().toISOString()
-  }
-];
+const INITIAL_USERS: User[] = [];
 
 class Database {
   private data: DatabaseSchema;
@@ -137,29 +116,7 @@ class Database {
       users: INITIAL_USERS,
       plans: DEFAULT_PLANS,
       savedReports: [],
-      history: [
-        {
-          id: 'hist_1',
-          userId: 'usr_demo',
-          topic: 'Christian prayer',
-          type: 'full_report',
-          createdAt: new Date(Date.now() - 3600000 * 2).toISOString()
-        },
-        {
-          id: 'hist_2',
-          userId: 'usr_demo',
-          topic: 'anxiety journal',
-          type: 'full_report',
-          createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
-        },
-        {
-          id: 'hist_3',
-          userId: 'usr_demo',
-          topic: 'murder mystery puzzles',
-          type: 'keyword',
-          createdAt: new Date(Date.now() - 3600000 * 48).toISOString()
-        }
-      ],
+      history: [],
       usageLogs: [],
       settings: DEFAULT_SETTINGS
     };
