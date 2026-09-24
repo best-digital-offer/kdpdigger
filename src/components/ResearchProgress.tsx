@@ -34,9 +34,8 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ topic }) => 
 
   return (
     <div id="research-progress-modal" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg mx-auto shadow-lg text-center my-8">
-      <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-4">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
+      {/* The header loading ring has been removed so the research animation can occupy this space. */}
+      <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true" />
 
       <h3 className="text-xl font-extrabold text-slate-900 mb-1">
         Researching &ldquo;{topic}&rdquo;...
