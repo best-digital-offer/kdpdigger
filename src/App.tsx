@@ -15,7 +15,6 @@ import { ResearchHero } from './components/ResearchHero.tsx';
 import { ResearchProgress } from './components/ResearchProgress.tsx';
 import { KeywordResearchView } from './components/KeywordResearchView.tsx';
 import { NicheResearchView } from './components/NicheResearchView.tsx';
-import { CompetitorResearchView } from './components/CompetitorResearchView.tsx';
 import { OpportunityFinderView } from './components/OpportunityFinderView.tsx';
 import { CompareOpportunitiesView } from './components/CompareOpportunitiesView.tsx';
 import { CompetitorComparisonView } from './components/CompetitorComparisonView.tsx';
@@ -27,6 +26,7 @@ import { AuthModal } from './components/AuthModal.tsx';
 import { supabase, apiFetch } from './lib/supabase.ts';
 import { AdminPanelView } from './components/AdminPanelView.tsx';
 import { HelpView } from './components/HelpView.tsx';
+import { CategoryExplorerView } from './components/CategoryExplorerView.tsx';
 import { LandingPageView } from './components/LandingPageView.tsx';
 import { CompetitionBadge, DemandBadge, MarketMaturityBadge } from './components/Badges.tsx';
 
@@ -508,7 +508,7 @@ export default function App() {
               </div>}
               {activeTab === 'keywords' && <KeywordResearchView primaryKeyword={searchTopic} keywords={currentReport.keywords} onSelectKeyword={handleSearch} />}
               {activeTab === 'niches' && <NicheResearchView niches={currentReport.niches} topic={searchTopic} onExploreNiche={handleSearch} onSelectKeyword={handleSearch} />}
-              {activeTab === 'competitors' && <CompetitorResearchView competitors={currentReport.competitors} marketGaps={currentReport.marketGaps} topic={searchTopic} onCompareCompetitor={handleCompareCompetitor} isBookInComparison={isBookInComparison} onAnalyzeCustomUrl={handleAnalyzeCustomUrl} isAnalyzingUrl={isAnalyzingUrl} />}
+              {activeTab === 'category-explorer' && <CategoryExplorerView niches={currentReport.niches} topic={searchTopic} onExploreCategory={handleSearch} />}
               {activeTab === 'opportunity-finder' && <OpportunityFinderView opportunities={currentReport.opportunities} topic={searchTopic} onSaveOpportunity={handleSaveOpportunity} isOpportunitySaved={isOpportunitySaved} onCompareOpportunity={handleCompareOpportunity} isOpportunityInCompare={isOpportunityInCompare} onViewFullReport={() => setActiveTab('opportunity-report')} onSelectKeyword={handleSearch} />}
               {activeTab === 'compare-opportunities' && <CompareOpportunitiesView opportunities={compareOpportunities} onRemoveFromCompare={(id) => setCompareOpportunities(prev => prev.filter(o => o.id !== id))} onSelectOpportunity={() => setActiveTab('opportunity-finder')} onClearAll={() => setCompareOpportunities([])} />}
               {activeTab === 'compare-competitors' && <CompetitorComparisonView competitors={compareCompetitors} onRemoveCompetitor={(id) => setCompareCompetitors(prev => prev.filter(b => b.id !== id))} onClearAll={() => setCompareCompetitors([])} />}
