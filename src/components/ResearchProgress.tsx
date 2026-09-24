@@ -34,13 +34,30 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ topic }) => 
 
   return (
     <div id="research-progress-modal" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg mx-auto shadow-lg text-center my-8">
+      <style>{`
+        @keyframes kdpDiggerDig {
+          0%, 100% { transform: translateY(2px) rotate(-10deg); }
+          25% { transform: translateY(-3px) rotate(7deg); }
+          50% { transform: translateY(3px) rotate(-8deg); }
+          75% { transform: translateY(-2px) rotate(9deg); }
+        }
+        .kdp-digger-animation {
+          transform-origin: 50% 72%;
+          animation: kdpDiggerDig 1.15s ease-in-out infinite;
+          will-change: transform;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .kdp-digger-animation { animation: none; }
+        }
+      `}</style>
+
       <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true">
         <img
           src="/research-digger.svg"
           alt=""
           width="96"
           height="96"
-          className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
+          className="kdp-digger-animation w-20 h-20 sm:w-24 sm:h-24 object-contain"
           draggable="false"
         />
       </div>
