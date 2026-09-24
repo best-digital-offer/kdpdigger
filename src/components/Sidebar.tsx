@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'keywords', label: 'Keyword Research', icon: KeyRound },
     { id: 'niches', label: 'Niche Research', icon: Compass },
-    { id: 'competitors', label: 'Competitor Research', icon: Users2 },
+    { id: 'category-explorer', label: 'Category Explorer', icon: Compass },
     { id: 'opportunity-finder', label: 'Opportunity Finder', icon: Sparkles, highlight: true },
     { id: 'compare-opportunities', label: 'Compare Opportunities', icon: GitCompare },
     { id: 'compare-competitors', label: 'Compare Competitors', icon: BookOpenCheck },
