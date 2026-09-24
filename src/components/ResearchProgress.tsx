@@ -34,8 +34,16 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ topic }) => 
 
   return (
     <div id="research-progress-modal" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg mx-auto shadow-lg text-center my-8">
-      {/* The header loading ring has been removed so the research animation can occupy this space. */}
-      <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true" />
+      <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true">
+        <img
+          src="/research-digger.gif"
+          alt=""
+          width="96"
+          height="96"
+          className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
+          draggable="false"
+        />
+      </div>
 
       <h3 className="text-xl font-extrabold text-slate-900 mb-1">
         Researching &ldquo;{topic}&rdquo;...
