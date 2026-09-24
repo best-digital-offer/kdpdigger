@@ -36,7 +36,7 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ topic }) => 
     <div id="research-progress-modal" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg mx-auto shadow-lg text-center my-8">
       <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true">
         <img
-          src="/research-digger.gif"
+          src="/research-digger.svg"
           alt=""
           width="96"
           height="96"
