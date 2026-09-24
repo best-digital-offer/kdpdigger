@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
+import lottie from 'lottie-web';
 
 interface ResearchProgressProps {
   topic: string;
@@ -17,50 +18,45 @@ const STEPS = [
 
 export const ResearchProgress: React.FC<ResearchProgressProps> = ({ topic }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const animationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Progressively advance through steps over ~4-5 seconds
     const interval = setInterval(() => {
-      setCurrentStep((prev) => {
-        if (prev < STEPS.length - 1) {
-          return prev + 1;
-        }
-        return prev;
-      });
+      setCurrentStep((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
     }, 600);
-
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!animationRef.current) return;
+
+    animationRef.current.innerHTML = '';
+
+    const animation = lottie.loadAnimation({
+      container: animationRef.current,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: '/shovel.json',
+      rendererSettings: {
+        preserveAspectRatio: 'xMidYMid meet',
+        progressiveLoad: true,
+      },
+    });
+
+    animation.setSpeed(1);
+
+    return () => animation.destroy();
   }, []);
 
   return (
     <div id="research-progress-modal" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg mx-auto shadow-lg text-center my-8">
-      <style>{`
-        @keyframes kdpDiggerDig {
-          0%, 100% { transform: translateY(2px) rotate(-10deg); }
-          25% { transform: translateY(-3px) rotate(7deg); }
-          50% { transform: translateY(3px) rotate(-8deg); }
-          75% { transform: translateY(-2px) rotate(9deg); }
-        }
-        .kdp-digger-animation {
-          transform-origin: 50% 72%;
-          animation: kdpDiggerDig 1.15s ease-in-out infinite;
-          will-change: transform;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .kdp-digger-animation { animation: none; }
-        }
-      `}</style>
-
-      <div className="h-20 sm:h-24 mb-3 flex items-center justify-center" aria-hidden="true">
-        <img
-          src="/research-digger.svg"
-          alt=""
-          width="96"
-          height="96"
-          className="kdp-digger-animation w-20 h-20 sm:w-24 sm:h-24 object-contain"
-          draggable="false"
-        />
-      </div>
+      <div
+        ref={animationRef}
+        className="h-20 sm:h-24 mb-3 flex items-center justify-center"
+        aria-label="KDP Digger is digging through the market data"
+        role="img"
+      />
 
       <h3 className="text-xl font-extrabold text-slate-900 mb-1">
         Researching &ldquo;{topic}&rdquo;...
