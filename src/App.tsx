@@ -575,7 +575,23 @@ export default function App() {
               {activeTab === 'help' && <HelpView />}
               {activeTab === 'admin' && currentUser.role === 'admin' && <AdminPanelView currentUser={currentUser} />}
             </>}
-          </div></main>
+          </div>
+          <footer className="mt-8 border-t border-slate-200 bg-white rounded-xl px-4 py-5">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+              <div className="text-center sm:text-left">
+                <div className="font-bold text-slate-800">N&amp;N Digitals — KDP Digger</div>
+                <div className="mt-1">KDP market research and validation software</div>
+                <div className="mt-1">Support: <a href="mailto:support@kdpdigger.com" className="text-blue-600 font-semibold">support@kdpdigger.com</a> · +91 91767 20224</div>
+              </div>
+              <nav className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+                <a href="/terms" className="hover:text-slate-900">Terms &amp; Conditions</a>
+                <a href="/privacy" className="hover:text-slate-900">Privacy Policy</a>
+                <a href="/refund-cancellation" className="hover:text-slate-900">Refund &amp; Cancellation</a>
+                <a href="/contact" className="hover:text-slate-900">Contact Us</a>
+              </nav>
+            </div>
+          </footer>
+          </main>
         </div>
       )}
       <PricingModal isOpen={isPricingModalOpen} onClose={() => setIsPricingModalOpen(false)} currentUser={currentUser} onActivatePlan={handleActivatePlan} />
