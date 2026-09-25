@@ -49,7 +49,7 @@ export default function App() {
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [allowAutoAuthModal, setAllowAutoAuthModal] = useState(false);
-  const legalPath = window.location.pathname.replace(/\\/+$/, '') || '/';
+  const legalPath = window.location.pathname.replace(/\/+$/, '') || '/';
   const legalPage = legalPath === '/terms' ? 'terms' : legalPath === '/privacy' ? 'privacy' : legalPath === '/refund-cancellation' ? 'refund' : legalPath === '/contact' ? 'contact' : null;
 
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
