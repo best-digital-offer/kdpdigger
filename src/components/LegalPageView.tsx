@@ -102,12 +102,14 @@ export const LegalPageView: React.FC<LegalPageViewProps> = ({ page, onBack }) =>
             <div className="mt-8 space-y-6 text-sm text-slate-700 leading-7">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="font-black text-slate-950">KDP Digger</div>
-                  <div className="text-xs text-slate-500 mt-1">KDP market research and validation software</div>
+                  <div className="font-black text-slate-950">N&amp;N Digitals</div>
+                  <div className="text-xs text-slate-500 mt-1">KDP Digger — KDP market research and validation software</div>
+                  <div className="text-xs text-slate-600 mt-2 leading-5">Sree Hemadurga Towers, 207 A Block, 2nd Floor<br />Alwin Cross, Miyapur, Hyderabad – 500049, Telangana, India</div>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                   <div className="font-black text-slate-950">Customer Support</div>
                   <a href="mailto:support@kdpdigger.com" className="text-blue-600 font-semibold break-all">support@kdpdigger.com</a>
+                  <div className="text-xs text-slate-600 mt-1">+91 91767 20224</div>
                   <div className="text-xs text-slate-500 mt-1">For account, billing, refund, privacy, and technical support</div>
                 </div>
               </div>
