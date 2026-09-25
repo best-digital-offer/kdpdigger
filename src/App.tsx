@@ -28,6 +28,7 @@ import { AdminPanelView } from './components/AdminPanelView.tsx';
 import { HelpView } from './components/HelpView.tsx';
 import { CategoryExplorerView } from './components/CategoryExplorerView.tsx';
 import { LandingPageView } from './components/LandingPageView.tsx';
+import { LegalPageView } from './components/LegalPageView.tsx';
 import { CompetitionBadge, DemandBadge, MarketMaturityBadge } from './components/Badges.tsx';
 
 const GUEST_USER: User = {
@@ -48,6 +49,8 @@ export default function App() {
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [allowAutoAuthModal, setAllowAutoAuthModal] = useState(false);
+  const legalPath = window.location.pathname.replace(/\\/+$/, '') || '/';
+  const legalPage = legalPath === '/terms' ? 'terms' : legalPath === '/privacy' ? 'privacy' : legalPath === '/refund-cancellation' ? 'refund' : legalPath === '/contact' ? 'contact' : null;
 
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
   const [searchTopic, setSearchTopic] = useState('');
@@ -462,6 +465,10 @@ export default function App() {
       setActiveTab('dashboard');
     }
   };
+
+  if (legalPage) {
+    return <LegalPageView page={legalPage as 'terms' | 'privacy' | 'refund' | 'contact'} onBack={() => { window.location.href = '/'; }} />;
+  }
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600 text-sm">Loading secure KDP Digger session...</div>;
