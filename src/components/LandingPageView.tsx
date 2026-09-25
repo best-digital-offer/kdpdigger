@@ -236,6 +236,22 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
           </button>
         </div>
       </section>
+      {/* Public compliance footer */}
+      <footer className="border-t border-slate-200 bg-white py-8 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="text-center sm:text-left">
+            <div className="font-bold text-slate-800">KDP Digger</div>
+            <div className="mt-1">KDP market research and validation software</div>
+            <a href="mailto:support@kdpdigger.com" className="mt-1 inline-block text-blue-600 font-semibold">support@kdpdigger.com</a>
+          </div>
+          <nav className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+            <a href="/terms" className="hover:text-slate-900">Terms &amp; Conditions</a>
+            <a href="/privacy" className="hover:text-slate-900">Privacy Policy</a>
+            <a href="/refund-cancellation" className="hover:text-slate-900">Refund &amp; Cancellation</a>
+            <a href="/contact" className="hover:text-slate-900">Contact Us</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 };
