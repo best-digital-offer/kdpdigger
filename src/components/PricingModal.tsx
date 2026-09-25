@@ -13,7 +13,7 @@ const DEFAULT_PLANS: PricingPlan[] = [
   {
     id: 'plan_starter',
     name: 'Weekly',
-    price: 2.99,
+    price: 249,
     durationDays: 7,
     credits: 15,
     features: [
@@ -28,7 +28,7 @@ const DEFAULT_PLANS: PricingPlan[] = [
   {
     id: 'plan_pro',
     name: 'Monthly',
-    price: 7.99,
+    price: 699,
     durationDays: 30,
     credits: 50,
     features: [
@@ -44,7 +44,7 @@ const DEFAULT_PLANS: PricingPlan[] = [
   {
     id: 'plan_publisher',
     name: 'Yearly',
-    price: 59.99,
+    price: 4999,
     durationDays: 365,
     credits: 600,
     features: [
@@ -70,21 +70,14 @@ export const PricingModal: React.FC<PricingModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSelectPlan = async (planId: string) => {
-    setLoadingPlan(planId);
-    setSuccessMessage(null);
-    try {
-      await onActivatePlan(planId);
-      setSuccessMessage('Payment simulated successfully! Your credits are active.');
-      setTimeout(() => {
-        setSuccessMessage(null);
-        onClose();
-      }, 1800);
-    } catch (err: any) {
-      alert(err.message || 'Payment simulation failed.');
-    } finally {
-      setLoadingPlan(null);
-    }
+  const checkoutPath = (planId: string) => {
+    if (planId === 'plan_starter') return '/checkout/weekly';
+    if (planId === 'plan_pro') return '/checkout/monthly';
+    return '/checkout/yearly';
+  };
+
+  const handleSelectPlan = (planId: string) => {
+    window.location.href = checkoutPath(planId);
   };
 
   return (
@@ -150,7 +143,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 <div>
                   <h3 className="font-bold text-slate-900 text-base mb-1">{plan.name}</h3>
                   <div className="flex items-baseline gap-1 mb-2">
-                    <span className="text-3xl font-black text-slate-950">${plan.price}</span>
+                    <span className="text-3xl font-black text-slate-950">₹{plan.price.toLocaleString("en-IN")}</span>
                     <span className="text-xs text-slate-500">/ {plan.durationDays} Days</span>
                   </div>
 
@@ -187,12 +180,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     ) : (
                       <>
                         <CreditCard className="w-3.5 h-3.5" />
-                        <span>Activate for ${plan.price}</span>
+                        <span>Checkout for ₹{plan.price.toLocaleString("en-IN")}</span>
                       </>
                     )}
                   </button>
                   <span className="text-[10px] text-center text-slate-400 block mt-1.5">
-                    Secure checkout &bull; Cancel anytime
+                    Paytm secure checkout &bull; Cancel anytime
                   </span>
                 </div>
               </div>
