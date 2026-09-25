@@ -29,6 +29,7 @@ import { HelpView } from './components/HelpView.tsx';
 import { CategoryExplorerView } from './components/CategoryExplorerView.tsx';
 import { LandingPageView } from './components/LandingPageView.tsx';
 import { LegalPageView } from './components/LegalPageView.tsx';
+import { CheckoutPageView } from './components/CheckoutPageView.tsx';
 import { CompetitionBadge, DemandBadge, MarketMaturityBadge } from './components/Badges.tsx';
 
 const GUEST_USER: User = {
@@ -51,6 +52,7 @@ export default function App() {
   const [allowAutoAuthModal, setAllowAutoAuthModal] = useState(false);
   const legalPath = window.location.pathname.replace(/\/+$/, '') || '/';
   const legalPage = legalPath === '/terms' ? 'terms' : legalPath === '/privacy' ? 'privacy' : legalPath === '/refund-cancellation' ? 'refund' : legalPath === '/contact' ? 'contact' : null;
+  const checkoutPlan = legalPath === '/checkout/weekly' ? 'weekly' : legalPath === '/checkout/monthly' ? 'monthly' : legalPath === '/checkout/yearly' ? 'yearly' : null;
 
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
   const [searchTopic, setSearchTopic] = useState('');
@@ -468,6 +470,10 @@ export default function App() {
 
   if (legalPage) {
     return <LegalPageView page={legalPage as 'terms' | 'privacy' | 'refund' | 'contact'} onBack={() => { window.location.href = '/'; }} />;
+  }
+
+  if (checkoutPlan) {
+    return <CheckoutPageView planKey={checkoutPlan} />;
   }
 
   if (authLoading) {
