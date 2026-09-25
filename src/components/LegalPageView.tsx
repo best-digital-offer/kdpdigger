@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Mail, ShieldCheck, FileText, RefreshCcw, Scale } from 'lucide-react';
 
-type LegalPage = 'terms' | 'privacy' | 'refund' | 'contact';
+type LegalPage = 'terms' | 'privacy' | 'refund' | 'contact' | 'about';
 
 interface LegalPageViewProps {
   page: LegalPage;
@@ -23,6 +23,11 @@ const pageMeta: Record<LegalPage, { title: string; icon: React.ReactNode; intro:
     title: 'Refund & Cancellation Policy',
     icon: <RefreshCcw className="w-5 h-5" />,
     intro: 'This policy explains cancellation and refund treatment for KDP Digger digital research credits and subscription plans.'
+  },
+  about: {
+    title: 'About KDP Digger',
+    icon: <FileText className="w-5 h-5" />,
+    intro: 'KDP Digger is a market research and validation SaaS developed by N&N Digitals for authors and publishers who want practical research insights before creating and publishing KDP books.'
   },
   contact: {
     title: 'Contact Us',
@@ -57,6 +62,15 @@ export const LegalPageView: React.FC<LegalPageViewProps> = ({ page, onBack }) =>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-950">{meta.title}</h1>
           <p className="mt-3 text-sm text-slate-600 leading-relaxed">{meta.intro}</p>
           <p className="mt-2 text-xs text-slate-400">Last updated: September 25, 2026</p>
+
+          {page === 'about' && (
+            <div className="mt-8 space-y-7 text-sm text-slate-700 leading-7">
+              <section><h2 className="text-lg font-black text-slate-950">About N&amp;N Digitals</h2><p>N&amp;N Digitals is the business behind KDP Digger. We develop digital software products designed to help online creators and publishers work more efficiently.</p></section>
+              <section><h2 className="text-lg font-black text-slate-950">About KDP Digger</h2><p>KDP Digger is a KDP market research and validation platform. It helps authors explore keywords, sub-niches, categories, market gaps, and publishing opportunities and organize their research into reports.</p></section>
+              <section><h2 className="text-lg font-black text-slate-950">Our Service</h2><p>The service provides research and analysis tools rather than a guarantee of book sales or income. Results are based on available market data and AI-assisted analysis and should be considered research indicators for the user's own publishing decisions.</p></section>
+              <section><h2 className="text-lg font-black text-slate-950">Business Information</h2><p><strong>N&amp;N Digitals</strong><br />Sree Hemadurga Towers, 207 A Block, 2nd Floor<br />Alwin Cross, Miyapur, Hyderabad – 500049, Telangana, India</p><p className="mt-3">Email: <a className="text-blue-600 font-semibold" href="mailto:support@kdpdigger.com">support@kdpdigger.com</a><br />Phone: +91 91767 20224</p></section>
+            </div>
+          )}
 
           {page === 'terms' && (
             <div className="mt-8 space-y-7 text-sm text-slate-700 leading-7">
