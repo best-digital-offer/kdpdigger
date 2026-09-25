@@ -51,7 +51,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [allowAutoAuthModal, setAllowAutoAuthModal] = useState(false);
   const legalPath = window.location.pathname.replace(/\/+$/, '') || '/';
-  const legalPage = legalPath === '/terms' ? 'terms' : legalPath === '/privacy' ? 'privacy' : legalPath === '/refund-cancellation' ? 'refund' : legalPath === '/contact' ? 'contact' : null;
+  const legalPage = legalPath === '/terms' ? 'terms' : legalPath === '/privacy' ? 'privacy' : legalPath === '/refund-cancellation' ? 'refund' : legalPath === '/contact' ? 'contact' : legalPath === '/about' ? 'about' : null;
   const checkoutPlan = legalPath === '/checkout/weekly' ? 'weekly' : legalPath === '/checkout/monthly' ? 'monthly' : legalPath === '/checkout/yearly' ? 'yearly' : null;
 
   const [currentReport, setCurrentReport] = useState<FullOpportunityReport>(DEMO_CHRISTIAN_PRAYER_REPORT);
@@ -469,7 +469,7 @@ export default function App() {
   };
 
   if (legalPage) {
-    return <LegalPageView page={legalPage as 'terms' | 'privacy' | 'refund' | 'contact'} onBack={() => { window.location.href = '/'; }} />;
+    return <LegalPageView page={legalPage as 'terms' | 'privacy' | 'refund' | 'contact' | 'about'} onBack={() => { window.location.href = '/'; }} />;
   }
 
   if (checkoutPlan) {
