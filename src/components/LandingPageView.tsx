@@ -245,7 +245,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
             <a href="mailto:support@kdpdigger.com" className="mt-1 inline-block text-blue-600 font-semibold">support@kdpdigger.com</a>
           </div>
           <nav className="flex flex-wrap justify-center gap-x-4 gap-y-2">
-            <a href="/terms" className="hover:text-slate-900">Terms &amp; Conditions</a>
+            <a href="/about" className="hover:text-slate-900">About Us</a><a href="/terms" className="hover:text-slate-900">Terms &amp; Conditions</a>
             <a href="/privacy" className="hover:text-slate-900">Privacy Policy</a>
             <a href="/refund-cancellation" className="hover:text-slate-900">Refund &amp; Cancellation</a>
             <a href="/contact" className="hover:text-slate-900">Contact Us</a>
